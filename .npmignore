@@ -1,0 +1,53 @@
+# Source files
+src/
+tsconfig.json
+
+# Development
+node_modules/
+.vscode/
+.idea/
+
+# Tests
+*.test.ts
+*.spec.ts
+test/
+tests/
+
+# CI/CD
+.github/
+.travis.yml
+.circleci/
+
+# Documentation (except README)
+docs/
+PLAN.md
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Profiles (user data)
+profiles/
+.crs-profiles/
+
+# Backup
+.backup/
+*.backup
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local

@@ -1,0 +1,60 @@
+{
+  "name": "cli-rule-switcher",
+  "version": "1.0.0",
+  "description": "CLI Rule Switcher - A CLI tool to manage and switch between multiple Claude Code configuration profiles",
+  "main": "dist/index.js",
+  "bin": {
+    "crs": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "cli",
+    "profile",
+    "configuration",
+    "switcher",
+    "rule-switch",
+    "workflow",
+    "productivity"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/cli-rule-switcher.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/cli-rule-switcher/issues"
+  },
+  "homepage": "https://github.com/yourusername/cli-rule-switcher#readme",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "commander": "^11.1.0",
+    "inquirer": "^9.2.12",
+    "chalk": "^5.3.0",
+    "fs-extra": "^11.2.0",
+    "ora": "^7.0.1",
+    "boxen": "^7.1.1",
+    "cli-table3": "^0.6.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.7",
+    "typescript": "^5.3.3"
+  }
+}
