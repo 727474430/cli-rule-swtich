@@ -256,18 +256,206 @@ Codex 工具配置较为简洁,CRS 仅管理：
 
 ### 使用场景
 
+#### 场景 1: 分别管理 Claude 和 Codex
+
 ```bash
-# 场景 1: 分别管理 Claude 和 Codex
-crs use frontend              # 前端开发用 Claude
-crs use api-dev --tool codex  # API 开发用 Codex
+# 前端开发使用 Claude
+crs use frontend
 
-# 场景 2: 为 Codex 创建专属配置
-crs --tool codex              # 进入 Codex 交互模式
-# 在交互界面中选择 "Save current config"
+# API 开发使用 Codex
+crs use api-dev --tool codex
 
-# 场景 3: 快速查看两种工具的配置
-crs list                      # 查看 Claude profiles
-crs list --tool codex         # 查看 Codex profiles
+# 两者完全独立，互不影响
+```
+
+#### 场景 2: 为 Codex 创建专属配置
+
+```bash
+# 方式 1: 交互模式（推荐）
+crs --tool codex
+# 选择 "💾 Save current config as new profile"
+# 输入名称和描述
+
+# 方式 2: 命令行模式
+crs save backend-api --tool codex -d "Backend API development configuration"
+
+# 方式 3: 创建空白配置
+crs create minimal-codex --tool codex -d "Minimal Codex configuration"
+```
+
+#### 场景 3: 快速查看所有配置
+
+```bash
+# 默认显示所有工具的配置
+crs list
+
+# 输出示例：
+# ┌────────┬──────────────┬────────────────────┬────────────────────┬───────────┐
+# │ Tool   │ Name         │ Description        │ Created            │ Status    │
+# ├────────┼──────────────┼────────────────────┼────────────────────┼───────────┤
+# │ Claude │ default      │ Default config...  │ 2025-10-13 12:04:29│ ● Current │
+# │ Claude │ frontend     │ Frontend dev...    │ 2025-10-13 14:20:15│           │
+# │ Codex  │ default      │ Default config...  │ 2025-10-13 12:04:08│ ● Current │
+# │ Codex  │ backend-api  │ Backend API...     │ 2025-10-13 15:30:42│           │
+# └────────┴──────────────┴────────────────────┴────────────────────┴───────────┘
+
+# 只看 Codex 配置
+crs list --tool codex
+
+# 只看 Claude 配置
+crs list --tool claude
+```
+
+#### 场景 4: 项目切换时自动切换配置
+
+```bash
+# 进入前端项目目录
+cd ~/projects/frontend-app
+crs use frontend              # 切换到前端 Claude 配置
+
+# 进入后端项目目录
+cd ~/projects/backend-api
+crs use backend-api --tool codex  # 切换到后端 Codex 配置
+```
+
+#### 场景 5: 备份和恢复 Codex 配置
+
+```bash
+# 查看 Codex 备份
+crs backup --tool codex
+
+# 恢复 Codex 备份（交互式）
+crs restore --tool codex
+
+# 切换 Codex profile 时自动创建备份
+crs use another-profile --tool codex
+# 自动备份当前配置到 .backup/codex/
+```
+
+### Codex 配置最佳实践
+
+#### 1. 为不同项目类型创建专属配置
+
+```bash
+# Web 开发
+crs save codex-web --tool codex -d "Web development with Node.js"
+
+# 系统编程
+crs save codex-systems --tool codex -d "Systems programming with Rust/C++"
+
+# 数据科学
+crs save codex-datascience --tool codex -d "Data science with Python"
+```
+
+#### 2. 使用描述性命名
+
+```bash
+# ✅ 好的命名
+crs save nextjs-fullstack --tool codex
+crs save fastapi-backend --tool codex
+crs save react-frontend --tool codex
+
+# ❌ 避免的命名
+crs save test1 --tool codex
+crs save config --tool codex
+crs save tmp --tool codex
+```
+
+#### 3. 定期保存工作配置
+
+```bash
+# 完成重要配置调整后立即保存
+# 1. 调整 ~/.codex/AGENTS.md
+# 2. 测试配置是否工作
+# 3. 保存为新版本
+crs save codex-stable-v2 --tool codex -d "Stable config v2 with improved prompts"
+```
+
+#### 4. 实验新配置时先备份
+
+```bash
+# 保存当前稳定配置
+crs save codex-stable --tool codex
+
+# 创建实验配置
+crs create codex-experiment --tool codex
+crs use codex-experiment --tool codex
+
+# 在 ~/.codex/AGENTS.md 中尝试新配置
+# 如果不满意，随时切回
+crs use codex-stable --tool codex
+```
+
+### Codex 与 Claude 对比
+
+| 特性 | Claude Code | Codex |
+|------|-------------|-------|
+| 配置目录 | `~/.claude` | `~/.codex` |
+| 主配置文件 | `CLAUDE.md` | `AGENTS.md` |
+| Agent 配置 | `agents/*.md` (多文件) | `AGENTS.md` (单文件) |
+| Workflow | ✅ `workflows/` | ❌ 不支持 |
+| Commands | ✅ `commands/` | ❌ 不支持 |
+| config.toml | ❌ 不适用 | ⚠️ 由 Codex 自身管理 |
+| CRS 管理范围 | 完整管理 | 仅 AGENTS.md |
+| 配置切换 | `crs use <name>` | `crs use <name> --tool codex` |
+
+### 常见问题
+
+#### Q: 为什么 Codex 只管理 AGENTS.md？
+
+**A**: Codex 的 `config.toml` 文件包含 API 密钥、模型配置等敏感信息，由 Codex CLI 自身管理更安全。CRS 专注于管理 Agent 提示词配置，这是最常需要切换的部分。
+
+#### Q: 可以同时使用不同的 Claude 和 Codex profile 吗？
+
+**A**: 可以！Claude 和 Codex 的配置完全独立：
+
+```bash
+# Claude 使用 frontend profile
+crs use frontend
+
+# Codex 使用 backend-api profile  
+crs use backend-api --tool codex
+
+# 查看当前状态
+crs list
+# 会显示两个工具各自的 current profile
+```
+
+#### Q: 如何在团队间共享 Codex 配置？
+
+**A**: 将 `.crs-profiles/codex/` 目录加入 Git：
+
+```bash
+# 方式 1: 共享整个 .crs-profiles
+git add .crs-profiles/
+git commit -m "Add team Codex configurations"
+
+# 方式 2: 只共享特定 profile
+git add .crs-profiles/codex/team-standard/
+git commit -m "Add team standard Codex config"
+
+# 团队成员拉取后
+git pull
+crs use team-standard --tool codex
+```
+
+#### Q: Codex profile 包含什么内容？
+
+**A**: 一个典型的 Codex profile 结构：
+
+```
+.crs-profiles/codex/backend-api/
+├── profile.json          # 元数据
+└── AGENTS.md             # Agent 配置
+
+profile.json 内容示例：
+{
+  "name": "backend-api",
+  "description": "Backend API development",
+  "toolType": "codex",
+  "createdAt": "2025-10-13T15:30:42.123Z",
+  "lastUsed": "2025-10-13T16:45:20.456Z"
+}
 ```
 
 ## 📖 核心概念详解
@@ -592,49 +780,115 @@ crs use project-a
 
 ## 📋 命令参考
 
-### 全局命令
+### 全局选项
 
 ```bash
-crs                    # 启动交互式界面（推荐）
-crs --help            # 显示帮助信息
-crs --version         # 显示版本号
+crs [options] [command]
+
+Options:
+  -t, --tool <type>     # 工具类型: claude 或 codex
+                        # 默认: 显示所有工具（list 命令）
+                        #       或使用 claude（其他命令）
+  -h, --help           # 显示帮助信息
+  -V, --version        # 显示版本号
+
+示例:
+  crs                           # 启动交互式界面（Claude）
+  crs --tool codex              # 启动交互式界面（Codex）
+  crs list                      # 列出所有工具的 profiles
+  crs list --tool codex         # 只列出 Codex profiles
+  crs use frontend --tool codex # 切换 Codex profile
 ```
 
 ### Profile 管理
 
 ```bash
 # 列出所有 profiles
-crs list
-crs ls                # list 的别名
+crs list                      # 显示所有工具（Claude + Codex）
+crs list --tool claude        # 只显示 Claude profiles
+crs list --tool codex         # 只显示 Codex profiles
+crs ls                        # list 的别名
 
 # 切换 profile
-crs use <profile-name>
+crs use <profile-name>                    # 切换 Claude profile（默认）
+crs use <profile-name> --tool codex      # 切换 Codex profile
+crs use <profile-name> --tool claude     # 显式指定 Claude
 
 # 保存当前配置为新 profile
 crs save <profile-name> [options]
   -d, --description <desc>    # 添加描述
+  -t, --tool <type>          # 工具类型（claude 或 codex）
+
+示例:
+  crs save my-frontend -d "Frontend development"
+  crs save my-backend --tool codex -d "Backend API development"
 
 # 创建空白 profile
 crs create <profile-name> [options]
   -d, --description <desc>    # 添加描述
+  -t, --tool <type>          # 工具类型（claude 或 codex）
+
+示例:
+  crs create minimal
+  crs create api-config --tool codex -d "API configuration"
 
 # 删除 profile
-crs delete <profile-name>
-crs rm <profile-name>  # delete 的别名
+crs delete <profile-name> [options]
+  -t, --tool <type>          # 工具类型（claude 或 codex）
+
+crs rm <profile-name>         # delete 的别名
+
+示例:
+  crs delete old-config
+  crs delete old-api --tool codex
 ```
 
 ### 备份管理
 
 ```bash
 # 列出所有备份
-crs backup
-crs backups           # backup 的别名
+crs backup [options]
+  -t, --tool <type>          # 工具类型（claude 或 codex）
+
+crs backups                   # backup 的别名
+
+示例:
+  crs backup                  # 列出 Claude 备份
+  crs backup --tool codex     # 列出 Codex 备份
 
 # 恢复备份（交互式）
-crs restore
+crs restore [timestamp] [options]
+  -t, --tool <type>          # 工具类型（claude 或 codex）
 
-# 恢复指定备份
-crs restore <timestamp>
+示例:
+  crs restore                               # 交互式恢复 Claude 备份
+  crs restore --tool codex                  # 交互式恢复 Codex 备份
+  crs restore 2025-10-13T10-30-00-000Z     # 恢复指定 Claude 备份
+  crs restore 2025-10-13T10-30-00-000Z --tool codex  # 恢复指定 Codex 备份
+```
+
+### 交互式模式
+
+```bash
+# 启动交互式界面
+crs                           # Claude 交互模式（默认）
+crs --tool codex              # Codex 交互模式
+
+交互菜单:
+  📋 List all profiles        # 列出所有 profiles
+  🔄 Switch profile          # 切换 profile
+  💾 Save current config     # 保存当前配置
+  ➕ Create empty profile    # 创建空白 profile
+  🗑️  Delete profile         # 删除 profile
+  📦 List backups            # 列出备份
+  ♻️  Restore backup         # 恢复备份
+  ❌ Exit                    # 退出
+
+提示:
+  - 使用 ↑/↓ 方向键选择选项
+  - 按 Enter 确认
+  - 按 ESC 返回主菜单
+  - 按 Ctrl+C 退出
 ```
 
 ## 🗂️ 项目结构
@@ -643,42 +897,78 @@ crs restore <timestamp>
 
 ```
 项目根目录/
-├── .crs-profiles/              # CRS 配置目录
-│   ├── default/                   # 默认 profile
-│   │   ├── profile.json           # 元数据
-│   │   ├── CLAUDE.md              # Claude 主配置
-│   │   ├── agents/                # Agent 配置目录
-│   │   │   ├── code-reviewer.md
-│   │   │   └── test-writer.md
-│   │   ├── workflows/             # Workflow 配置目录
-│   │   │   └── dev-workflow.md
-│   │   └── commands/              # 命令配置目录
-│   │       └── commit.md
-│   ├── frontend/                  # 前端 profile
-│   │   └── ...
-│   ├── backend/                   # 后端 profile
-│   │   └── ...
-│   ├── .current                   # 当前活动 profile 名称
-│   └── .backup/                   # 自动备份目录
-│       ├── 2025-01-12T10-30-00-000Z/
-│       ├── 2025-01-12T11-00-00-000Z/
-│       └── ...
+├── .crs-profiles/                 # CRS 配置目录
+│   ├── claude/                       # Claude Code profiles
+│   │   ├── default/                     # 默认 Claude profile
+│   │   │   ├── profile.json                # 元数据
+│   │   │   ├── CLAUDE.md                   # Claude 主配置
+│   │   │   ├── agents/                     # Agent 配置目录
+│   │   │   │   ├── code-reviewer.md
+│   │   │   │   └── test-writer.md
+│   │   │   ├── workflows/                  # Workflow 配置目录
+│   │   │   │   └── dev-workflow.md
+│   │   │   └── commands/                   # 命令配置目录
+│   │   │       └── commit.md
+│   │   ├── frontend/                    # 前端 Claude profile
+│   │   │   └── ...
+│   │   └── backend/                     # 后端 Claude profile
+│   │       └── ...
+│   │
+│   ├── codex/                        # Codex profiles
+│   │   ├── default/                     # 默认 Codex profile
+│   │   │   ├── profile.json                # 元数据
+│   │   │   └── AGENTS.md                   # Codex Agent 配置
+│   │   ├── api-dev/                     # API 开发 Codex profile
+│   │   │   └── ...
+│   │   └── data-science/                # 数据科学 Codex profile
+│   │       └── ...
+│   │
+│   ├── .current-claude               # 当前活动 Claude profile 名称
+│   ├── .current-codex                # 当前活动 Codex profile 名称
+│   └── .backup/                      # 自动备份目录
+│       ├── claude/                      # Claude 备份
+│       │   ├── 2025-10-13T10-30-00-000Z/
+│       │   ├── 2025-10-13T11-00-00-000Z/
+│       │   └── ...
+│       └── codex/                       # Codex 备份
+│           ├── 2025-10-13T12-00-00-000Z/
+│           ├── 2025-10-13T13-00-00-000Z/
+│           └── ...
 │
-└── ~/.claude/                     # Claude Code 配置目录
-    ├── CLAUDE.md                  # 当前使用的配置
-    ├── agents/
-    ├── workflows/
-    └── commands/
+├── ~/.claude/                     # Claude Code 配置目录
+│   ├── CLAUDE.md                     # 当前使用的配置
+│   ├── agents/
+│   ├── workflows/
+│   └── commands/
+│
+└── ~/.codex/                      # Codex 配置目录
+    ├── AGENTS.md                     # 当前使用的 Agent 配置
+    └── config.toml                   # Codex 自身管理，CRS 不涉及
 ```
 
 ### profile.json 元数据格式
+
+#### Claude Profile 元数据
 
 ```json
 {
   "name": "frontend",
   "description": "Frontend development with React",
-  "createdAt": "2025-01-12T10:30:00.000Z",
-  "lastUsed": "2025-01-12T15:45:00.000Z"
+  "toolType": "claude",
+  "createdAt": "2025-10-13T10:30:00.000Z",
+  "lastUsed": "2025-10-13T15:45:00.000Z"
+}
+```
+
+#### Codex Profile 元数据
+
+```json
+{
+  "name": "api-dev",
+  "description": "Backend API development",
+  "toolType": "codex",
+  "createdAt": "2025-10-13T12:00:00.000Z",
+  "lastUsed": "2025-10-13T16:30:00.000Z"
 }
 ```
 
