@@ -107,10 +107,10 @@ crs
 
 2. **自动创建默认配置**
 
-首次运行时,CRS 会自动检测你的 `~/.claude` 目录:
-- 如果存在配置文件,自动创建名为 `default` 的 profile
-- 完整备份 CLAUDE.md、agents/、workflows/、commands/ 四个核心内容
-- 设置 `default` 为当前激活的 profile
+首次运行时,CRS 会自动检测你的 `~/.claude` 和 `~/.codex` 目录:
+- 如果存在配置文件,为对应工具自动创建名为 `default` 的 profile（Claude: 复制 CLAUDE.md/agents/workflows/commands；Codex: 复制 AGENTS.md）
+- 如果不存在现有配置,也会为该工具创建一个带模板内容的空 `default` profile
+- 两个工具都会将 `default` 设置为当前激活的 profile
 
 ```
 ╭─────────────────────── 🔄 Welcome ────────────────────────╮
@@ -233,7 +233,7 @@ Codex 工具配置较为简洁,CRS 仅管理：
 ### 目录结构
 
 ```
-.crs-profiles/
+~/.crs-profiles/
 ├── claude/                   # Claude Code profiles
 │   ├── default/
 │   │   ├── profile.json
@@ -481,11 +481,15 @@ Profile 是一套完整的 Claude Code 配置快照,包含:
 
 #### 1. 默认 Profile (自动创建)
 
-**触发时机:** 首次运行 CRS 且没有任何 profiles
+**触发时机:** 首次运行 CRS 且没有任何 profiles（Claude 与 Codex 分别判断）
 
 **行为:**
-- 读取 `~/.claude` 的所有内容
-- 创建名为 `default` 的 profile
+- 若检测到现有配置：
+  - Claude: 读取 `~/.claude` 的 CLAUDE.md、agents/、workflows/、commands
+  - Codex: 读取 `~/.codex/AGENTS.md`
+  - 为对应工具创建名为 `default` 的 profile
+- 若未检测到现有配置：
+  - 为对应工具创建一个空的 `default` profile（带模板内容）
 - 自动设置为当前 profile
 
 **适用场景:** 保护现有配置,作为基础 profile
@@ -620,7 +624,7 @@ crs use production        # 生产环境
 
 **备份内容:** 当前 `~/.claude` 的完整快照
 
-**备份位置:** `.crs-profiles/.backup/<timestamp>/`
+**备份位置:** `~/.crs-profiles/.backup/<timestamp>/`
 
 **备份管理:**
 - 自动保留最近 **5 个备份**
@@ -1055,7 +1059,7 @@ npm publish
 1. **自动备份**
    - 每次切换 profile 前自动备份当前配置
    - 保留最近 5 个备份,自动清理旧备份
-   - 备份目录: `.crs-profiles/.backup/`
+   - 备份目录: `~/.crs-profiles/.backup/`
 
 2. **操作确认**
    - 删除 profile 需要确认
@@ -1101,7 +1105,7 @@ config!        # 包含特殊字符
 # 自定义 Claude 配置目录（默认: ~/.claude）
 export CLAUDE_CONFIG_DIR="$HOME/my-claude-config"
 
-# 自定义 profiles 目录（默认: ./.crs-profiles）
+# 自定义 profiles 目录（默认: ~/.crs-profiles）
 export CRS_PROFILES_DIR="$HOME/.crs-profiles"
 ```
 
@@ -1186,10 +1190,10 @@ cat ~/.claude/CLAUDE.md
 
 ```bash
 # 查看备份大小
-du -sh .crs-profiles/.backup/
+du -sh ~/.crs-profiles/.backup/
 
 # 手动清理旧备份
-rm -rf .crs-profiles/.backup/2025-01-*
+rm -rf ~/.crs-profiles/.backup/2025-01-*
 
 # 或调整最大备份数量（修改源码）
 # src/core/config.ts: MAX_BACKUPS: 3
@@ -1206,7 +1210,7 @@ rm -rf .crs-profiles/.backup/2025-01-*
 crs restore
 
 # 方式 2: 手动检查 profile.json
-cat .crs-profiles/<profile-name>/profile.json
+cat ~/.crs-profiles/<profile-name>/profile.json
 
 # 方式 3: 重新创建 profile
 crs delete broken-profile
@@ -1234,14 +1238,14 @@ crs delete old-profile
 DEBUG=crs:* crs list
 
 # 查看配置文件
-cat .crs-profiles/.current
-cat .crs-profiles/<profile>/profile.json
+cat ~/.crs-profiles/.current-claude
+cat ~/.crs-profiles/<profile>/profile.json
 
 # 验证文件结构
-tree .crs-profiles/
+tree ~/.crs-profiles/
 
 # 检查备份
-ls -la .crs-profiles/.backup/
+ls -la ~/.crs-profiles/.backup/
 ```
 
 ### 紧急恢复
@@ -1253,14 +1257,14 @@ ls -la .crs-profiles/.backup/
 # 不要运行任何 crs 命令
 
 # 2. 手动恢复最新备份
-cp -r .crs-profiles/.backup/<latest-timestamp>/* ~/.claude/
+cp -r ~/.crs-profiles/.backup/<latest-timestamp>/* ~/.claude/
 
 # 3. 或从 profile 手动恢复
-cp -r .crs-profiles/<profile-name>/* ~/.claude/
+cp -r ~/.crs-profiles/<profile-name>/* ~/.claude/
 rm ~/.claude/profile.json  # 删除元数据文件
 
 # 4. 重新初始化 CRS
-rm -rf .crs-profiles/
+rm -rf ~/.crs-profiles/
 crs  # 重新创建 default profile
 ```
 
@@ -1268,15 +1272,15 @@ crs  # 重新创建 default profile
 
 ### Q1: CRS 会修改我的原始配置吗?
 
-**A:** 不会。首次运行时,CRS 会将你的 `~/.claude` 配置保存为 `default` profile。之后,所有操作都基于 profiles,不会直接修改原始配置。
+**A:** 不会。首次运行时,CRS 会将你的 `~/.claude` 和 `~/.codex` 配置（若存在）保存为各自的 `default` profile；若未检测到现有配置，也会为对应工具创建一个空的 `default` profile。之后,所有操作都基于 profiles,不会直接修改原始配置。
 
 ### Q2: 我可以在多个项目中使用 CRS 吗?
 
-**A:** 可以。每个项目目录都可以有自己的 `.crs-profiles/` 目录。不同项目的 profiles 互不影响。
+**A:** 可以。CRS 使用全局配置目录 `~/.crs-profiles/`，可在多个项目中复用同一套 profiles。如需自定义目录，可设置环境变量 `CRS_PROFILES_DIR`。
 
 ### Q3: Profile 可以跨项目共享吗?
 
-**A:** 可以。你可以手动复制 `.crs-profiles/` 目录到其他项目,或通过 Git 共享。
+**A:** 可以。你可以手动复制 `~/.crs-profiles/` 目录到其他位置（或项目仓库）进行共享，或使用自己偏好的同步方式。
 
 ### Q4: 删除 profile 后可以恢复吗?
 
@@ -1290,7 +1294,7 @@ crs  # 重新创建 default profile
 
 **A:** 可以。有两种方式:
 1. 切换到该 profile,修改 `~/.claude` 后重新保存
-2. 直接编辑 `.crs-profiles/<profile-name>/` 目录下的文件
+2. 直接编辑 `~/.crs-profiles/<profile-name>/` 目录下的文件
 
 ### Q7: CRS 支持 Windows 吗?
 
@@ -1298,7 +1302,7 @@ crs  # 重新创建 default profile
 
 ### Q8: 如何将 profile 分享给团队?
 
-**A:** 将 `.crs-profiles/` 目录添加到 Git 仓库,团队成员克隆后即可使用。或打包为 tar.gz 文件分享。
+**A:** 可将 `~/.crs-profiles/` 中的内容导出到项目或共享仓库，或打包为 tar.gz 文件分享。
 
 ### Q9: Profile 保存了哪些内容?
 

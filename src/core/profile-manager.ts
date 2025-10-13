@@ -75,37 +75,44 @@ export class ProfileManager {
       return; // Profiles already exist, no need to create default
     }
 
-    // Check if target directory exists and has content
-    const targetDirExists = await fs.pathExists(this.paths.targetDir);
-    if (!targetDirExists) {
-      return; // No target directory, nothing to backup
+    // Try to read current configuration if target directory exists
+    let hasContent = false;
+    let files: ClaudeFiles | CodexFiles | undefined;
+
+    if (await fs.pathExists(this.paths.targetDir)) {
+      const readFiles = await this.readTargetFiles();
+      if (this.toolType === 'claude') {
+        const cf = readFiles as ClaudeFiles;
+        const hasAgents = (cf.agents?.length ?? 0) > 0;
+        const hasWorkflows = (cf.workflows?.length ?? 0) > 0;
+        const hasCommands = (cf.commands?.length ?? 0) > 0;
+        hasContent = Boolean(cf.claudeMd) || hasAgents || hasWorkflows || hasCommands;
+        if (hasContent) files = cf;
+      } else {
+        const xf = readFiles as CodexFiles;
+        hasContent = Boolean(xf.agentsMd);
+        if (hasContent) files = xf;
+      }
     }
 
-    // Read current configuration
-    const files = await this.readTargetFiles();
-
-    // Check if there's any content to save
-    const hasContent = this.toolType === 'claude'
-      ? !!(files as ClaudeFiles).claudeMd ||
-        ((files as ClaudeFiles).agents && (files as ClaudeFiles).agents!.length > 0) ||
-        ((files as ClaudeFiles).workflows && (files as ClaudeFiles).workflows!.length > 0) ||
-        ((files as ClaudeFiles).commands && (files as ClaudeFiles).commands!.length > 0)
-      : !!(files as CodexFiles).agentsMd;
-
-    if (!hasContent) {
-      return; // No content to save
+    if (hasContent && files) {
+      // Create default profile from existing configuration
+      const defaultProfile: Profile = {
+        name: 'default',
+        description: `Default configuration from ${this.toolType === 'claude' ? '~/.claude' : '~/.codex'}`,
+        toolType: this.toolType,
+        createdAt: new Date().toISOString(),
+        files,
+      };
+      await this.saveProfile(defaultProfile);
+    } else {
+      // Create an empty default profile when no existing configuration is found
+      const description = 'Empty default profile';
+      const result = await this.createEmpty('default', description);
+      if (!result.success) {
+        return; // Fail silently; initialization shouldn't block usage
+      }
     }
-
-    // Create default profile
-    const defaultProfile: Profile = {
-      name: 'default',
-      description: `Default configuration from ${this.toolType === 'claude' ? '~/.claude' : '~/.codex'}`,
-      toolType: this.toolType,
-      createdAt: new Date().toISOString(),
-      files,
-    };
-
-    await this.saveProfile(defaultProfile);
 
     // Set as current profile
     await this.setCurrentProfile('default');

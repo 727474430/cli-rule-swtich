@@ -7,8 +7,13 @@ import { ConfigPaths, ToolType } from '../types';
  */
 export function getConfigPaths(toolType: ToolType = 'claude'): ConfigPaths {
   const homeDir = os.homedir();
-  const projectRoot = process.cwd();
-  const baseProfilesDir = path.join(projectRoot, '.crs-profiles');
+  // Prefer env override, otherwise default to ~/.crs-profiles
+  const envDir = process.env.CRS_PROFILES_DIR;
+  // Support '~' prefix in env var by expanding to home directory
+  const resolvedEnvDir = envDir && envDir.startsWith('~')
+    ? path.join(homeDir, envDir.slice(1))
+    : envDir;
+  const baseProfilesDir = resolvedEnvDir || path.join(homeDir, '.crs-profiles');
 
   return {
     // Tool-specific profile storage
