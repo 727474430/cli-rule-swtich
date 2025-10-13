@@ -31,3 +31,6 @@ profiles/*
 
 # CRS configuration directory (user data)
 .crs-profiles/
+
+# Local development files
+PLAN.md
