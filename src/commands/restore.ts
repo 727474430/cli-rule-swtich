@@ -2,6 +2,7 @@ import Table from 'cli-table3';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
+import { ToolType } from '../types';
 import { ProfileManager } from '../core/profile-manager';
 import { Logger } from '../utils/logger';
 
@@ -21,19 +22,20 @@ function formatDate(date: Date): string {
 /**
  * List all backups
  */
-export async function listBackups(): Promise<void> {
-  const manager = new ProfileManager();
+export async function listBackups(toolType: ToolType = 'claude'): Promise<void> {
+  const manager = new ProfileManager(toolType);
   await manager.initialize();
 
   const backups = await manager.listBackups();
 
   if (backups.length === 0) {
-    Logger.warning('No backups found');
+    Logger.warning(`No ${toolType} backups found`);
     Logger.info('Backups are created automatically when you switch profiles');
     return;
   }
 
-  Logger.header('Available Backups');
+  const toolLabel = toolType === 'claude' ? 'Claude Code' : 'Codex';
+  Logger.header(`Available ${toolLabel} Backups`);
   Logger.newLine();
 
   const table = new Table({
@@ -56,14 +58,14 @@ export async function listBackups(): Promise<void> {
   console.log(table.toString());
   Logger.newLine();
   Logger.info(`Total backups: ${chalk.green.bold(backups.length.toString())}`);
-  Logger.info(`Restore a backup with: ${chalk.cyan('crs restore <timestamp>')}`);
+  Logger.info(`Restore a backup with: ${chalk.cyan(`crs restore <timestamp> --tool ${toolType}`)}`);
 }
 
 /**
  * Restore a specific backup
  */
-export async function restoreBackup(timestamp?: string): Promise<void> {
-  const manager = new ProfileManager();
+export async function restoreBackup(timestamp?: string, toolType: ToolType = 'claude'): Promise<void> {
+  const manager = new ProfileManager(toolType);
   await manager.initialize();
 
   const backups = await manager.listBackups();

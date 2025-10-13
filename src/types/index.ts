@@ -1,22 +1,40 @@
 /**
+ * Tool type enumeration
+ */
+export type ToolType = 'claude' | 'codex';
+
+/**
+ * Claude Code configuration files
+ */
+export interface ClaudeFiles {
+  claudeMd?: string;          // CLAUDE.md content
+  agents?: DirectoryFile[];   // agents/ directory files
+  workflows?: DirectoryFile[]; // workflows/ directory files
+  commands?: DirectoryFile[];  // commands/ directory files
+}
+
+/**
+ * Codex configuration files
+ */
+export interface CodexFiles {
+  agentsMd?: string;          // AGENTS.md content
+}
+
+/**
+ * Profile files structure (union type based on tool)
+ */
+export type ProfileFiles = ClaudeFiles | CodexFiles;
+
+/**
  * Profile configuration interface
  */
 export interface Profile {
   name: string;
   description: string;
+  toolType: ToolType;         // Tool type this profile is for
   createdAt: string;
   lastUsed?: string;
   files: ProfileFiles;
-}
-
-/**
- * Profile files structure
- */
-export interface ProfileFiles {
-  claudeMd?: string;          // CLAUDE.md content
-  agents?: DirectoryFile[];   // agents/ directory files
-  workflows?: DirectoryFile[]; // workflows/ directory files
-  commands?: DirectoryFile[];  // commands/ directory files
 }
 
 /**
@@ -31,10 +49,10 @@ export interface DirectoryFile {
  * Configuration paths
  */
 export interface ConfigPaths {
-  profilesDir: string;      // Where profiles are stored
-  claudeDir: string;        // Target ~/.claude directory
-  currentFile: string;      // File tracking current profile
-  backupDir: string;        // Backup directory
+  profilesDir: string;      // Where profiles are stored (tool-specific)
+  targetDir: string;        // Target directory (~/.claude or ~/.codex)
+  currentFile: string;      // File tracking current profile (tool-specific)
+  backupDir: string;        // Backup directory (tool-specific)
 }
 
 /**
@@ -52,6 +70,7 @@ export interface OperationResult {
 export interface ProfileMetadata {
   name: string;
   description: string;
+  toolType: ToolType;       // Tool type
   createdAt: string;
   lastUsed?: string;
   fileCount: number;

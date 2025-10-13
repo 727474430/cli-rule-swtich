@@ -1,4 +1,5 @@
 import ora from 'ora';
+import { ToolType } from '../types';
 import { ProfileManager } from '../core/profile-manager';
 import { Logger } from '../utils/logger';
 
@@ -7,9 +8,10 @@ import { Logger } from '../utils/logger';
  */
 export async function saveProfile(
   name: string,
-  description?: string
+  description?: string,
+  toolType: ToolType = 'claude'
 ): Promise<void> {
-  const manager = new ProfileManager();
+  const manager = new ProfileManager(toolType);
   await manager.initialize();
 
   // Check if profile already exists
@@ -20,7 +22,8 @@ export async function saveProfile(
     return;
   }
 
-  const spinner = ora(`Saving current configuration as "${name}"...`).start();
+  const toolLabel = toolType === 'claude' ? 'Claude Code' : 'Codex';
+  const spinner = ora(`Saving current ${toolLabel} configuration as "${name}"...`).start();
 
   const result = await manager.createFromCurrent(
     name,
@@ -30,8 +33,8 @@ export async function saveProfile(
   if (result.success) {
     spinner.succeed(result.message);
     Logger.newLine();
-    Logger.success('Current configuration has been saved');
-    Logger.info(`Switch to it anytime with: crs use ${name}`);
+    Logger.success(`Current ${toolLabel} configuration has been saved`);
+    Logger.info(`Switch to it anytime with: crs use ${name} --tool ${toolType}`);
   } else {
     spinner.fail(result.message);
     if (result.error) {

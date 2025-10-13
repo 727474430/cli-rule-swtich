@@ -2,7 +2,7 @@
 
 <div align="center">
 
-🔄 **轻松管理和切换多套 Claude Code 配置的 CLI 工具**
+🔄 **轻松管理和切换多套 Claude Code 和 Codex 配置的 CLI 工具**
 
 [![npm version](https://img.shields.io/npm/v/cli-rule-switcher.svg)](https://www.npmjs.com/package/cli-rule-switcher)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
@@ -15,22 +15,24 @@
 
 ## 💡 为什么需要 CRS?
 
-使用 Claude Code 时,你是否遇到过这些问题:
+使用 Claude Code 或 Codex 时,你是否遇到过这些问题:
 
 - 🔄 为不同项目需要不同的 Agent 和 Workflow 配置
 - 🎯 在开发、测试、生产环境需要切换不同的提示词规则
 - 💼 团队协作时需要统一的配置模板
 - ⚠️ 担心修改配置后无法恢复到之前的稳定状态
 - 🎨 想为前端、后端、DevOps 等场景创建专属配置
+- 🔀 需要在 Claude Code 和 Codex 之间管理不同的配置
 
-**CLI Rule Switcher (CRS)** 就是为了解决这些问题而生!它让你可以像管理 Git 分支一样管理 Claude Code 配置。
+**CLI Rule Switcher (CRS)** 就是为了解决这些问题而生!它让你可以像管理 Git 分支一样管理 Claude Code 和 Codex 配置。
 
 ## ✨ 核心特性
 
 ### 🚀 开箱即用
 - **零配置启动** - 首次运行自动创建 `default` profile,保护现有配置
-- **智能检测** - 自动备份 `~/.claude` 目录现有内容
+- **智能检测** - 自动检测并备份 `~/.claude` 和 `~/.codex` 目录现有内容
 - **无缝迁移** - 从现有配置平滑过渡,无需手动操作
+- **双工具支持** - 同时支持 Claude Code 和 Codex,独立管理各自配置
 
 ### 🎨 用户体验
 - **交互式 TUI** - 美观的文本界面,方便的上下箭头选择
@@ -43,6 +45,7 @@
 - **快速切换** - 一键在多个 profile 之间切换
 - **自动备份** - 每次切换前自动备份,保留最近 5 个备份
 - **灵活管理** - 创建、保存、删除、列出、恢复配置
+- **工具切换** - 通过 `--tool` 参数在 Claude 和 Codex 之间切换
 
 ### 🛡️ 安全可靠
 - **双重保护** - 切换前自动备份 + 手动备份目录
@@ -195,6 +198,76 @@ crs --help
 
 # 查看版本
 crs --version
+```
+
+## 🔀 Codex 支持
+
+CRS 现已支持 Codex 工具配置管理！通过 `--tool` 参数可以轻松在 Claude Code 和 Codex 之间切换。
+
+### 基本用法
+
+```bash
+# 管理 Claude Code 配置（默认）
+crs list                              # 列出 Claude profiles
+crs use frontend                      # 切换 Claude profile
+
+# 管理 Codex 配置
+crs list --tool codex                 # 列出 Codex profiles
+crs use api-dev --tool codex          # 切换 Codex profile
+crs save my-config --tool codex       # 保存 Codex 配置
+```
+
+### Codex 管理范围
+
+Codex 工具配置较为简洁,CRS 仅管理：
+- ✅ `~/.codex/AGENTS.md` - Agent 配置文件
+- ❌ 不管理 `config.toml` 和 `config_*.toml` (这些由 Codex 自身管理)
+
+### 配置独立性
+
+- Claude 和 Codex 配置完全独立管理
+- 各自维护独立的 `.current-claude` 和 `.current-codex` 追踪文件
+- 备份目录分别为 `.backup/claude/` 和 `.backup/codex/`
+- 可同时使用不同的 Claude 和 Codex profiles
+
+### 目录结构
+
+```
+.crs-profiles/
+├── claude/                   # Claude Code profiles
+│   ├── default/
+│   │   ├── profile.json
+│   │   ├── CLAUDE.md
+│   │   ├── agents/
+│   │   ├── workflows/
+│   │   └── commands/
+│   └── frontend/
+├── codex/                    # Codex profiles
+│   ├── default/
+│   │   ├── profile.json
+│   │   └── AGENTS.md
+│   └── backend-api/
+├── .current-claude           # 当前 Claude profile
+├── .current-codex            # 当前 Codex profile
+└── .backup/
+    ├── claude/
+    └── codex/
+```
+
+### 使用场景
+
+```bash
+# 场景 1: 分别管理 Claude 和 Codex
+crs use frontend              # 前端开发用 Claude
+crs use api-dev --tool codex  # API 开发用 Codex
+
+# 场景 2: 为 Codex 创建专属配置
+crs --tool codex              # 进入 Codex 交互模式
+# 在交互界面中选择 "Save current config"
+
+# 场景 3: 快速查看两种工具的配置
+crs list                      # 查看 Claude profiles
+crs list --tool codex         # 查看 Codex profiles
 ```
 
 ## 📖 核心概念详解

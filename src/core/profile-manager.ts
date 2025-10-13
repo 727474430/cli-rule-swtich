@@ -1,16 +1,58 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { Profile, ProfileMetadata, OperationResult } from '../types';
+import { Profile, ProfileMetadata, OperationResult, ToolType, ClaudeFiles, CodexFiles, ProfileFiles } from '../types';
 import { getConfigPaths, PROFILE_CONFIG } from './config';
 import {
   readClaudeFiles,
   writeClaudeFiles,
   clearClaudeFiles,
+  readCodexFiles,
+  writeCodexFiles,
+  clearCodexFiles,
   countProfileFiles,
 } from './file-system';
 
 export class ProfileManager {
-  private paths = getConfigPaths();
+  private toolType: ToolType;
+  private paths;
+
+  constructor(toolType: ToolType = 'claude') {
+    this.toolType = toolType;
+    this.paths = getConfigPaths(toolType);
+  }
+
+  /**
+   * Read target files based on tool type
+   */
+  private async readTargetFiles(): Promise<ProfileFiles> {
+    if (this.toolType === 'claude') {
+      return readClaudeFiles(this.paths.targetDir);
+    } else {
+      return readCodexFiles(this.paths.targetDir);
+    }
+  }
+
+  /**
+   * Write target files based on tool type
+   */
+  private async writeTargetFiles(files: ProfileFiles): Promise<void> {
+    if (this.toolType === 'claude') {
+      await writeClaudeFiles(this.paths.targetDir, files as ClaudeFiles);
+    } else {
+      await writeCodexFiles(this.paths.targetDir, files as CodexFiles);
+    }
+  }
+
+  /**
+   * Clear target files based on tool type
+   */
+  private async clearTargetFiles(): Promise<void> {
+    if (this.toolType === 'claude') {
+      await clearClaudeFiles(this.paths.targetDir);
+    } else {
+      await clearCodexFiles(this.paths.targetDir);
+    }
+  }
 
   /**
    * Initialize profile manager
@@ -33,21 +75,22 @@ export class ProfileManager {
       return; // Profiles already exist, no need to create default
     }
 
-    // Check if ~/.claude directory exists and has content
-    const claudeDirExists = await fs.pathExists(this.paths.claudeDir);
-    if (!claudeDirExists) {
-      return; // No ~/.claude directory, nothing to backup
+    // Check if target directory exists and has content
+    const targetDirExists = await fs.pathExists(this.paths.targetDir);
+    if (!targetDirExists) {
+      return; // No target directory, nothing to backup
     }
 
-    // Read current Claude configuration
-    const files = await readClaudeFiles(this.paths.claudeDir);
+    // Read current configuration
+    const files = await this.readTargetFiles();
 
     // Check if there's any content to save
-    const hasContent =
-      files.claudeMd ||
-      (files.agents && files.agents.length > 0) ||
-      (files.workflows && files.workflows.length > 0) ||
-      (files.commands && files.commands.length > 0);
+    const hasContent = this.toolType === 'claude'
+      ? !!(files as ClaudeFiles).claudeMd ||
+        ((files as ClaudeFiles).agents && (files as ClaudeFiles).agents!.length > 0) ||
+        ((files as ClaudeFiles).workflows && (files as ClaudeFiles).workflows!.length > 0) ||
+        ((files as ClaudeFiles).commands && (files as ClaudeFiles).commands!.length > 0)
+      : !!(files as CodexFiles).agentsMd;
 
     if (!hasContent) {
       return; // No content to save
@@ -56,7 +99,8 @@ export class ProfileManager {
     // Create default profile
     const defaultProfile: Profile = {
       name: 'default',
-      description: 'Default configuration from ~/.claude',
+      description: `Default configuration from ${this.toolType === 'claude' ? '~/.claude' : '~/.codex'}`,
+      toolType: this.toolType,
       createdAt: new Date().toISOString(),
       files,
     };
@@ -88,6 +132,7 @@ export class ProfileManager {
           profiles.push({
             name: profile.name,
             description: profile.description,
+            toolType: profile.toolType,
             createdAt: profile.createdAt,
             lastUsed: profile.lastUsed,
             fileCount: countProfileFiles(profile.files),
@@ -112,7 +157,11 @@ export class ProfileManager {
     }
 
     const metadata = await fs.readJson(metadataPath);
-    const files = await readClaudeFiles(profileDir);
+    
+    // Read files based on tool type
+    const files = metadata.toolType === 'claude'
+      ? await readClaudeFiles(profileDir)
+      : await readCodexFiles(profileDir);
 
     return {
       ...metadata,
@@ -132,6 +181,7 @@ export class ProfileManager {
       const metadata = {
         name: profile.name,
         description: profile.description,
+        toolType: profile.toolType,
         createdAt: profile.createdAt,
         lastUsed: profile.lastUsed,
       };
@@ -141,8 +191,12 @@ export class ProfileManager {
         { spaces: 2 }
       );
 
-      // Save files
-      await writeClaudeFiles(profileDir, profile.files);
+      // Save files based on tool type
+      if (profile.toolType === 'claude') {
+        await writeClaudeFiles(profileDir, profile.files as ClaudeFiles);
+      } else {
+        await writeCodexFiles(profileDir, profile.files as CodexFiles);
+      }
 
       return { success: true, message: `Profile "${profile.name}" saved` };
     } catch (error) {
@@ -170,12 +224,13 @@ export class ProfileManager {
         };
       }
 
-      // Read current Claude configuration
-      const files = await readClaudeFiles(this.paths.claudeDir);
+      // Read current configuration from target directory
+      const files = await this.readTargetFiles();
 
       const profile: Profile = {
         name,
         description,
+        toolType: this.toolType,
         createdAt: new Date().toISOString(),
         files,
       };
@@ -205,13 +260,15 @@ export class ProfileManager {
         };
       }
 
-      // Create profile with default CLAUDE.md and empty directories
+      // Create profile with default content based on tool type
       const profile: Profile = {
         name,
         description,
+        toolType: this.toolType,
         createdAt: new Date().toISOString(),
-        files: {
-          claudeMd: `# ${name} Configuration
+        files: this.toolType === 'claude' 
+          ? {
+              claudeMd: `# ${name} Configuration
 
 ## Profile Description
 ${description}
@@ -219,17 +276,27 @@ ${description}
 ## Settings
 Add your configuration here.
 `,
-          agents: [],
-          workflows: [],
-          commands: [],
-        },
+              agents: [],
+              workflows: [],
+              commands: [],
+            }
+          : {
+              agentsMd: `# ${name} Agents Configuration
+
+## Profile Description
+${description}
+
+## Agents
+Add your agents configuration here.
+`,
+            },
       };
 
       // Save profile first
       const result = await this.saveProfile(profile);
 
-      // Create empty directories in the profile
-      if (result.success) {
+      // Create empty directories in the profile (Claude only)
+      if (result.success && this.toolType === 'claude') {
         const profileDir = path.join(this.paths.profilesDir, name);
         await fs.ensureDir(path.join(profileDir, 'agents'));
         await fs.ensureDir(path.join(profileDir, 'workflows'));
@@ -263,11 +330,11 @@ Add your configuration here.
       // Backup current configuration
       await this.backupCurrentConfig();
 
-      // Clear current Claude configuration
-      await clearClaudeFiles(this.paths.claudeDir);
+      // Clear current configuration
+      await this.clearTargetFiles();
 
       // Write new configuration
-      await writeClaudeFiles(this.paths.claudeDir, profile.files);
+      await this.writeTargetFiles(profile.files);
 
       // Update current profile
       await this.setCurrentProfile(name);
@@ -363,15 +430,22 @@ Add your configuration here.
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupDir = path.join(this.paths.backupDir, timestamp);
 
-    if (await fs.pathExists(this.paths.claudeDir)) {
-      const files = await readClaudeFiles(this.paths.claudeDir);
-      await writeClaudeFiles(backupDir, files);
+    if (await fs.pathExists(this.paths.targetDir)) {
+      const files = await this.readTargetFiles();
+      
+      // Write files to backup directory
+      if (this.toolType === 'claude') {
+        await writeClaudeFiles(backupDir, files as ClaudeFiles);
+      } else {
+        await writeCodexFiles(backupDir, files as CodexFiles);
+      }
 
       // Save backup metadata with current profile name
       const currentProfile = await this.getCurrentProfile();
       const metadata = {
         timestamp,
         profileName: currentProfile || 'unknown',
+        toolType: this.toolType,
         createdAt: new Date().toISOString(),
       };
       await fs.writeJson(
@@ -462,14 +536,24 @@ Add your configuration here.
       // Backup current configuration before restoring
       await this.backupCurrentConfig();
 
-      // Read backup files
-      const files = await readClaudeFiles(backupDir);
+      // Read backup files (need to determine tool type from metadata)
+      const metadataPath = path.join(backupDir, 'backup.json');
+      let toolType: ToolType = this.toolType;
+      
+      if (await fs.pathExists(metadataPath)) {
+        const metadata = await fs.readJson(metadataPath);
+        toolType = metadata.toolType || this.toolType;
+      }
+      
+      const files = toolType === 'claude'
+        ? await readClaudeFiles(backupDir)
+        : await readCodexFiles(backupDir);
 
-      // Clear current Claude configuration
-      await clearClaudeFiles(this.paths.claudeDir);
+      // Clear current configuration
+      await this.clearTargetFiles();
 
-      // Write backup files to Claude directory
-      await writeClaudeFiles(this.paths.claudeDir, files);
+      // Write backup files to target directory
+      await this.writeTargetFiles(files);
 
       return {
         success: true,

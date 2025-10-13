@@ -1,5 +1,6 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
+import { ToolType } from '../types';
 import { ProfileManager } from '../core/profile-manager';
 import { Logger } from '../utils/logger';
 import { useProfile } from './use';
@@ -12,25 +13,28 @@ import { listBackups, restoreBackup } from './restore';
 /**
  * Interactive mode
  */
-export async function interactiveMode(): Promise<void> {
-  const manager = new ProfileManager();
+export async function interactiveMode(toolType: ToolType = 'claude'): Promise<void> {
+  const manager = new ProfileManager(toolType);
   await manager.initialize();
 
   // Check if default profile was just created
   const profiles = await manager.listProfiles();
   const hasDefaultProfile = profiles.some((p) => p.name === 'default');
 
+  const toolLabel = toolType === 'claude' ? 'Claude Code' : 'Codex';
+  const targetDir = toolType === 'claude' ? '~/.claude' : '~/.codex';
+  
   Logger.box(
-    chalk.bold('Claude Profile Switcher') +
+    chalk.bold(`${toolLabel} Profile Switcher`) +
       '\n\n' +
-      'Manage and switch between multiple Claude Code configurations',
+      `Manage and switch between multiple ${toolLabel} configurations`,
     '🔄 Welcome'
   );
 
   // Show info about default profile if it exists and is the only one
   if (hasDefaultProfile && profiles.length === 1) {
     Logger.info(
-      'A default profile has been created from your current ~/.claude configuration'
+      `A default profile has been created from your current ${targetDir} configuration`
     );
     Logger.newLine();
   }
@@ -67,31 +71,32 @@ export async function interactiveMode(): Promise<void> {
 
     switch (action) {
       case 'list':
+        // Show all tools in list view
         await listProfiles();
         break;
 
       case 'use':
-        await handleUseProfile(profiles);
+        await handleUseProfile(profiles, toolType);
         break;
 
       case 'save':
-        await handleSaveProfile();
+        await handleSaveProfile(toolType);
         break;
 
       case 'create':
-        await handleCreateProfile();
+        await handleCreateProfile(toolType);
         break;
 
       case 'delete':
-        await handleDeleteProfile(profiles);
+        await handleDeleteProfile(profiles, toolType);
         break;
 
       case 'backups':
-        await listBackups();
+        await listBackups(toolType);
         break;
 
       case 'restore':
-        await restoreBackup();
+        await restoreBackup(undefined, toolType);
         break;
 
       case 'exit':
@@ -107,7 +112,8 @@ export async function interactiveMode(): Promise<void> {
  * Handle use profile
  */
 async function handleUseProfile(
-  profiles: Array<{ name: string; description: string; isCurrent: boolean }>
+  profiles: Array<{ name: string; description: string; isCurrent: boolean }>,
+  toolType: ToolType
 ): Promise<void> {
   if (profiles.length === 0) {
     Logger.warning('No profiles available');
@@ -142,23 +148,23 @@ async function handleUseProfile(
     ]);
 
     if (!profileName) {
-      Logger.info('Profile switch cancelled');
+      Logger.info('↩️  Returning to main menu...');
       return;
     }
 
     Logger.newLine();
-    await useProfile(profileName);
+    await useProfile(profileName, toolType);
   } catch (error) {
     // User cancelled (Ctrl+C or ESC)
     Logger.newLine();
-    Logger.info('Profile switch cancelled');
+    Logger.info('↩️  Returning to main menu...');
   }
 }
 
 /**
  * Handle save profile
  */
-async function handleSaveProfile(): Promise<void> {
+async function handleSaveProfile(toolType: ToolType): Promise<void> {
   try {
     const { name, description } = await inquirer.prompt([
       {
@@ -184,18 +190,18 @@ async function handleSaveProfile(): Promise<void> {
     ]);
 
     Logger.newLine();
-    await saveProfile(name, description);
+    await saveProfile(name, description, toolType);
   } catch (error) {
     // User cancelled (Ctrl+C or ESC)
     Logger.newLine();
-    Logger.info('Profile save cancelled');
+    Logger.info('↩️  Returning to main menu...');
   }
 }
 
 /**
  * Handle create profile
  */
-async function handleCreateProfile(): Promise<void> {
+async function handleCreateProfile(toolType: ToolType): Promise<void> {
   try {
     const { name, description } = await inquirer.prompt([
       {
@@ -221,11 +227,11 @@ async function handleCreateProfile(): Promise<void> {
     ]);
 
     Logger.newLine();
-    await createProfile(name, description);
+    await createProfile(name, description, toolType);
   } catch (error) {
     // User cancelled (Ctrl+C or ESC)
     Logger.newLine();
-    Logger.info('Profile creation cancelled');
+    Logger.info('↩️  Returning to main menu...');
   }
 }
 
@@ -233,7 +239,8 @@ async function handleCreateProfile(): Promise<void> {
  * Handle delete profile
  */
 async function handleDeleteProfile(
-  profiles: Array<{ name: string; description: string; isCurrent: boolean }>
+  profiles: Array<{ name: string; description: string; isCurrent: boolean }>,
+  toolType: ToolType
 ): Promise<void> {
   if (profiles.length === 0) {
     Logger.warning('No profiles available');
@@ -264,15 +271,15 @@ async function handleDeleteProfile(
     ]);
 
     if (!profileName) {
-      Logger.info('Profile deletion cancelled');
+      Logger.info('↩️  Returning to main menu...');
       return;
     }
 
     Logger.newLine();
-    await deleteProfile(profileName);
+    await deleteProfile(profileName, toolType);
   } catch (error) {
     // User cancelled (Ctrl+C or ESC)
     Logger.newLine();
-    Logger.info('Profile deletion cancelled');
+    Logger.info('↩️  Returning to main menu...');
   }
 }

@@ -1,13 +1,14 @@
 import inquirer from 'inquirer';
 import ora from 'ora';
+import { ToolType } from '../types';
 import { ProfileManager } from '../core/profile-manager';
 import { Logger } from '../utils/logger';
 
 /**
  * Delete a profile
  */
-export async function deleteProfile(name: string): Promise<void> {
-  const manager = new ProfileManager();
+export async function deleteProfile(name: string, toolType: ToolType = 'claude'): Promise<void> {
+  const manager = new ProfileManager(toolType);
   await manager.initialize();
 
   // Check if profile exists

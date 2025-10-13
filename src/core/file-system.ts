@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { CLAUDE_FILES } from './config';
-import { ProfileFiles, DirectoryFile } from '../types';
+import { CLAUDE_FILES, CODEX_FILES } from './config';
+import { ProfileFiles, DirectoryFile, ClaudeFiles, CodexFiles } from '../types';
 
 /**
  * Read files from a directory
@@ -27,10 +27,10 @@ async function readDirectoryFiles(dirPath: string): Promise<DirectoryFile[]> {
 }
 
 /**
- * Read all Claude configuration files from a directory
+ * Read all Claude Code configuration files from a directory
  */
-export async function readClaudeFiles(claudeDir: string): Promise<ProfileFiles> {
-  const files: ProfileFiles = {};
+export async function readClaudeFiles(claudeDir: string): Promise<ClaudeFiles> {
+  const files: ClaudeFiles = {};
 
   // Read CLAUDE.md
   const claudeMdPath = path.join(claudeDir, CLAUDE_FILES.CLAUDE_MD);
@@ -78,11 +78,26 @@ async function writeDirectoryFiles(
 }
 
 /**
- * Write Claude configuration files to a directory
+ * Read all Codex configuration files from a directory
+ */
+export async function readCodexFiles(codexDir: string): Promise<CodexFiles> {
+  const files: CodexFiles = {};
+
+  // Read AGENTS.md
+  const agentsMdPath = path.join(codexDir, CODEX_FILES.AGENTS_MD);
+  if (await fs.pathExists(agentsMdPath)) {
+    files.agentsMd = await fs.readFile(agentsMdPath, 'utf-8');
+  }
+
+  return files;
+}
+
+/**
+ * Write Claude Code configuration files to a directory
  */
 export async function writeClaudeFiles(
   claudeDir: string,
-  files: ProfileFiles
+  files: ClaudeFiles
 ): Promise<void> {
   // Ensure directory exists
   await fs.ensureDir(claudeDir);
@@ -115,7 +130,26 @@ export async function writeClaudeFiles(
 }
 
 /**
- * Clear Claude configuration files from a directory
+ * Write Codex configuration files to a directory
+ */
+export async function writeCodexFiles(
+  codexDir: string,
+  files: CodexFiles
+): Promise<void> {
+  // Ensure directory exists
+  await fs.ensureDir(codexDir);
+
+  // Write AGENTS.md
+  if (files.agentsMd) {
+    await fs.writeFile(
+      path.join(codexDir, CODEX_FILES.AGENTS_MD),
+      files.agentsMd
+    );
+  }
+}
+
+/**
+ * Clear Claude Code configuration files from a directory
  */
 export async function clearClaudeFiles(claudeDir: string): Promise<void> {
   const filesToRemove = [
@@ -133,6 +167,17 @@ export async function clearClaudeFiles(claudeDir: string): Promise<void> {
 }
 
 /**
+ * Clear Codex configuration files from a directory
+ */
+export async function clearCodexFiles(codexDir: string): Promise<void> {
+  const agentsMdPath = path.join(codexDir, CODEX_FILES.AGENTS_MD);
+  
+  if (await fs.pathExists(agentsMdPath)) {
+    await fs.remove(agentsMdPath);
+  }
+}
+
+/**
  * Copy directory recursively
  */
 export async function copyDirectory(src: string, dest: string): Promise<void> {
@@ -140,13 +185,34 @@ export async function copyDirectory(src: string, dest: string): Promise<void> {
 }
 
 /**
- * Count files in a profile
+ * Count files in a Claude profile
  */
-export function countProfileFiles(files: ProfileFiles): number {
+export function countClaudeFiles(files: ClaudeFiles): number {
   let count = 0;
   if (files.claudeMd) count++;
   if (files.agents) count += files.agents.length;
   if (files.workflows) count += files.workflows.length;
   if (files.commands) count += files.commands.length;
   return count;
+}
+
+/**
+ * Count files in a Codex profile
+ */
+export function countCodexFiles(files: CodexFiles): number {
+  let count = 0;
+  if (files.agentsMd) count++;
+  return count;
+}
+
+/**
+ * Count files in a profile (wrapper function)
+ */
+export function countProfileFiles(files: ProfileFiles): number {
+  // Type guard to check if it's ClaudeFiles
+  if ('claudeMd' in files || 'agents' in files || 'workflows' in files || 'commands' in files) {
+    return countClaudeFiles(files as ClaudeFiles);
+  } else {
+    return countCodexFiles(files as CodexFiles);
+  }
 }

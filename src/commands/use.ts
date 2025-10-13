@@ -1,19 +1,21 @@
 import ora from 'ora';
+import { ToolType } from '../types';
 import { ProfileManager } from '../core/profile-manager';
 import { Logger } from '../utils/logger';
 
 /**
  * Switch to a profile
  */
-export async function useProfile(name: string): Promise<void> {
-  const manager = new ProfileManager();
+export async function useProfile(name: string, toolType: ToolType = 'claude'): Promise<void> {
+  const manager = new ProfileManager(toolType);
   await manager.initialize();
 
   // Check if profile exists
   const profileExists = await manager.profileExists(name);
   if (!profileExists) {
-    Logger.error(`Profile "${name}" not found`);
-    Logger.info('Available profiles:');
+    const toolLabel = toolType === 'claude' ? 'Claude Code' : 'Codex';
+    Logger.error(`${toolLabel} profile "${name}" not found`);
+    Logger.info(`Available ${toolType} profiles:`);
     const profiles = await manager.listProfiles();
     profiles.forEach((p) => {
       Logger.log(`  - ${p.name}`);
@@ -36,8 +38,9 @@ export async function useProfile(name: string): Promise<void> {
   if (result.success) {
     spinner.succeed(result.message);
     Logger.newLine();
+    const toolLabel = toolType === 'claude' ? 'Claude Code' : 'Codex';
     Logger.box(
-      `Profile "${name}" is now active!\n\nYour Claude configuration has been updated.`,
+      `Profile "${name}" is now active!\n\nYour ${toolLabel} configuration has been updated.`,
       'Success'
     );
   } else {
