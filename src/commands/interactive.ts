@@ -1,6 +1,7 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
-import { ToolType } from '../types';
+import Table from 'cli-table3';
+import { ToolType, ProfileMetadata } from '../types';
 import { ProfileManager } from '../core/profile-manager';
 import { Logger } from '../utils/logger';
 import { useProfile } from './use';
@@ -40,7 +41,16 @@ export async function interactiveMode(toolType: ToolType = 'claude'): Promise<vo
   }
 
   while (true) {
-    const profiles = await manager.listProfiles();
+    // Get profiles from all tools for switch/delete operations
+    const claudeManager = new ProfileManager('claude');
+    const codexManager = new ProfileManager('codex');
+    await claudeManager.initialize();
+    await codexManager.initialize();
+    
+    const claudeProfiles = await claudeManager.listProfiles();
+    const codexProfiles = await codexManager.listProfiles();
+    const allProfiles = [...claudeProfiles, ...codexProfiles];
+    
     const currentProfile = await manager.getCurrentProfile();
 
     const choices = [
@@ -64,6 +74,7 @@ export async function interactiveMode(toolType: ToolType = 'claude'): Promise<vo
           ? `Current profile: ${chalk.green.bold(currentProfile)} - What do you want to do?`
           : 'What do you want to do?',
         choices,
+        loop: false,
       },
     ]);
 
@@ -76,7 +87,7 @@ export async function interactiveMode(toolType: ToolType = 'claude'): Promise<vo
         break;
 
       case 'use':
-        await handleUseProfile(profiles, toolType);
+        await handleUseProfile(allProfiles);
         break;
 
       case 'save':
@@ -88,15 +99,15 @@ export async function interactiveMode(toolType: ToolType = 'claude'): Promise<vo
         break;
 
       case 'delete':
-        await handleDeleteProfile(profiles, toolType);
+        await handleDeleteProfile(allProfiles);
         break;
 
       case 'backups':
-        await listBackups(toolType);
+        await listBackups();
         break;
 
       case 'restore':
-        await restoreBackup(undefined, toolType);
+        await restoreBackup();
         break;
 
       case 'exit':
@@ -109,11 +120,29 @@ export async function interactiveMode(toolType: ToolType = 'claude'): Promise<vo
 }
 
 /**
+ * Sort profiles: default first, then by name, grouped by tool type
+ */
+function sortProfilesByToolAndDefault(profiles: ProfileMetadata[]): ProfileMetadata[] {
+  return profiles.sort((a, b) => {
+    // First, sort by tool type (claude before codex)
+    if (a.toolType !== b.toolType) {
+      return a.toolType === 'claude' ? -1 : 1;
+    }
+    
+    // Within same tool type, default comes first
+    if (a.name === 'default' && b.name !== 'default') return -1;
+    if (a.name !== 'default' && b.name === 'default') return 1;
+    
+    // Otherwise sort alphabetically by name
+    return a.name.localeCompare(b.name);
+  });
+}
+
+/**
  * Handle use profile
  */
 async function handleUseProfile(
-  profiles: Array<{ name: string; description: string; isCurrent: boolean }>,
-  toolType: ToolType
+  profiles: ProfileMetadata[]
 ): Promise<void> {
   if (profiles.length === 0) {
     Logger.warning('No profiles available');
@@ -129,35 +158,124 @@ async function handleUseProfile(
     return;
   }
 
-  const choices = profiles.map((p) => ({
-    name: p.isCurrent
-      ? `${chalk.green('● ')}${chalk.green.bold(p.name)} - ${p.description} ${chalk.gray('(current)')}`
-      : `  ${p.name} - ${p.description}`,
-    value: p.name,
-    disabled: p.isCurrent ? 'Already active' : false,
-  }));
+  // Sort profiles
+  const sortedProfiles = sortProfilesByToolAndDefault(profiles);
+
+  // Display profiles in table format
+  Logger.header('Available Profiles');
+  Logger.newLine();
+
+  const table = new Table({
+    colWidths: [5, 8, 18, 35, 12],
+    wordWrap: true,
+  });
+
+  let lastToolType: string | null = null;
+  
+  sortedProfiles.forEach((profile, index) => {
+    // Add group header and column headers for each tool type
+    if (lastToolType !== profile.toolType) {
+      const toolLabel = profile.toolType === 'claude' ? chalk.blue('Claude') : chalk.magenta('Codex');
+      const separator = chalk.gray('─'.repeat(20));
+      
+      // Add group title
+      table.push([
+        { colSpan: 5, content: `${separator} ${toolLabel} ${separator}` }
+      ]);
+      
+      // Add column headers
+      table.push([
+        chalk.cyan('#'),
+        chalk.cyan('Tool'),
+        chalk.cyan('Name'),
+        chalk.cyan('Description'),
+        chalk.cyan('Status'),
+      ]);
+    }
+    lastToolType = profile.toolType;
+    
+    const toolLabel = profile.toolType === 'claude' ? chalk.blue('Claude') : chalk.magenta('Codex');
+    const status = profile.isCurrent ? chalk.green('● Current') : '';
+    const nameDisplay = profile.isCurrent ? chalk.gray(profile.name) : profile.name;
+    const descDisplay = profile.isCurrent ? chalk.gray(profile.description) : profile.description;
+    
+    table.push([
+      profile.isCurrent ? chalk.gray((index + 1).toString()) : (index + 1).toString(),
+      profile.isCurrent ? chalk.gray(toolLabel) : toolLabel,
+      nameDisplay,
+      descDisplay,
+      status,
+    ]);
+  });
+
+  console.log(table.toString());
+  Logger.newLine();
 
   try {
-    const { profileName } = await inquirer.prompt([
+    const { selection } = await inquirer.prompt([
       {
-        type: 'list',
-        name: 'profileName',
-        message: 'Select a profile to switch to:',
-        choices,
+        type: 'input',
+        name: 'selection',
+        message: `Enter profile number or name ${chalk.gray('(Enter to cancel)')}: `,
+        validate: (input: string) => {
+          if (!input.trim()) {
+            return true; // Allow empty to cancel
+          }
+          
+          // Check if it's a number
+          const num = parseInt(input);
+          if (!isNaN(num)) {
+            if (num < 1 || num > sortedProfiles.length) {
+              return `Please enter a number between 1 and ${sortedProfiles.length}`;
+            }
+            const profile = sortedProfiles[num - 1];
+            if (profile.isCurrent) {
+              return 'This profile is already active. Please select another one.';
+            }
+            return true;
+          }
+          
+          // Check if it's a profile name
+          const profile = sortedProfiles.find(p => p.name === input.trim());
+          if (!profile) {
+            return `Profile "${input}" not found`;
+          }
+          if (profile.isCurrent) {
+            return 'This profile is already active. Please select another one.';
+          }
+          return true;
+        },
       },
     ]);
 
-    if (!profileName) {
+    if (!selection.trim()) {
       Logger.info('↩️  Returning to main menu...');
       return;
     }
 
+    // Determine the profile
+    let selectedProfile: ProfileMetadata | undefined;
+    const num = parseInt(selection);
+    if (!isNaN(num)) {
+      selectedProfile = sortedProfiles[num - 1];
+    } else {
+      selectedProfile = sortedProfiles.find(p => p.name === selection.trim());
+    }
+
+    if (!selectedProfile) {
+      Logger.error('Profile not found');
+      return;
+    }
+
+    const profileToolType = selectedProfile.toolType || 'claude';
+    
     Logger.newLine();
-    await useProfile(profileName, toolType);
+    await useProfile(selectedProfile.name, profileToolType);
   } catch (error) {
-    // User cancelled (Ctrl+C or ESC)
+    // User cancelled
     Logger.newLine();
-    Logger.info('↩️  Returning to main menu...');
+    Logger.info('↩️  Cancelled.');
+    return;
   }
 }
 
@@ -166,7 +284,18 @@ async function handleUseProfile(
  */
 async function handleSaveProfile(toolType: ToolType): Promise<void> {
   try {
-    const { name, description } = await inquirer.prompt([
+    const { tool, name, description } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'tool',
+        message: 'Select tool type:',
+        choices: [
+          { name: chalk.blue('Claude Code'), value: 'claude' },
+          { name: chalk.magenta('Codex'), value: 'codex' },
+        ],
+        default: toolType,
+        loop: false,
+      },
       {
         type: 'input',
         name: 'name',
@@ -190,11 +319,12 @@ async function handleSaveProfile(toolType: ToolType): Promise<void> {
     ]);
 
     Logger.newLine();
-    await saveProfile(name, description, toolType);
+    await saveProfile(name, description, tool as ToolType);
   } catch (error) {
-    // User cancelled (Ctrl+C or ESC)
+    // User cancelled
     Logger.newLine();
-    Logger.info('↩️  Returning to main menu...');
+    Logger.info('↩️  Cancelled.');
+    return;
   }
 }
 
@@ -203,7 +333,18 @@ async function handleSaveProfile(toolType: ToolType): Promise<void> {
  */
 async function handleCreateProfile(toolType: ToolType): Promise<void> {
   try {
-    const { name, description } = await inquirer.prompt([
+    const { tool, name, description } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'tool',
+        message: 'Select tool type:',
+        choices: [
+          { name: chalk.blue('Claude Code'), value: 'claude' },
+          { name: chalk.magenta('Codex'), value: 'codex' },
+        ],
+        default: toolType,
+        loop: false,
+      },
       {
         type: 'input',
         name: 'name',
@@ -227,11 +368,12 @@ async function handleCreateProfile(toolType: ToolType): Promise<void> {
     ]);
 
     Logger.newLine();
-    await createProfile(name, description, toolType);
+    await createProfile(name, description, tool as ToolType);
   } catch (error) {
-    // User cancelled (Ctrl+C or ESC)
+    // User cancelled
     Logger.newLine();
-    Logger.info('↩️  Returning to main menu...');
+    Logger.info('↩️  Cancelled.');
+    return;
   }
 }
 
@@ -239,8 +381,7 @@ async function handleCreateProfile(toolType: ToolType): Promise<void> {
  * Handle delete profile
  */
 async function handleDeleteProfile(
-  profiles: Array<{ name: string; description: string; isCurrent: boolean }>,
-  toolType: ToolType
+  profiles: ProfileMetadata[]
 ): Promise<void> {
   if (profiles.length === 0) {
     Logger.warning('No profiles available');
@@ -255,31 +396,111 @@ async function handleDeleteProfile(
     return;
   }
 
-  const choices = deletableProfiles.map((p) => ({
-    name: `${p.name} - ${p.description}`,
-    value: p.name,
-  }));
+  // Sort deletable profiles
+  const sortedDeletableProfiles = sortProfilesByToolAndDefault(deletableProfiles);
+
+  // Display deletable profiles in table format
+  Logger.header('Deletable Profiles');
+  Logger.newLine();
+
+  const table = new Table({
+    colWidths: [5, 8, 18, 43],
+    wordWrap: true,
+  });
+
+  let lastToolType: string | null = null;
+  
+  sortedDeletableProfiles.forEach((profile, index) => {
+    // Add group header and column headers for each tool type
+    if (lastToolType !== profile.toolType) {
+      const toolLabel = profile.toolType === 'claude' ? chalk.blue('Claude') : chalk.magenta('Codex');
+      const separator = chalk.gray('─'.repeat(20));
+      
+      // Add group title
+      table.push([
+        { colSpan: 4, content: `${separator} ${toolLabel} ${separator}` }
+      ]);
+      
+      // Add column headers
+      table.push([
+        chalk.cyan('#'),
+        chalk.cyan('Tool'),
+        chalk.cyan('Name'),
+        chalk.cyan('Description'),
+      ]);
+    }
+    lastToolType = profile.toolType;
+    
+    const toolLabel = profile.toolType === 'claude' ? chalk.blue('Claude') : chalk.magenta('Codex');
+    
+    table.push([
+      (index + 1).toString(),
+      toolLabel,
+      profile.name,
+      profile.description,
+    ]);
+  });
+
+  console.log(table.toString());
+  Logger.newLine();
 
   try {
-    const { profileName } = await inquirer.prompt([
+    const { selection } = await inquirer.prompt([
       {
-        type: 'list',
-        name: 'profileName',
-        message: 'Select a profile to delete:',
-        choices,
+        type: 'input',
+        name: 'selection',
+        message: `Enter profile number or name to delete ${chalk.gray('(Enter to cancel)')}: `,
+        validate: (input: string) => {
+          if (!input.trim()) {
+            return true; // Allow empty to cancel
+          }
+          
+          // Check if it's a number
+          const num = parseInt(input);
+          if (!isNaN(num)) {
+            if (num < 1 || num > sortedDeletableProfiles.length) {
+              return `Please enter a number between 1 and ${sortedDeletableProfiles.length}`;
+            }
+            return true;
+          }
+          
+          // Check if it's a profile name
+          const profile = sortedDeletableProfiles.find(p => p.name === input.trim());
+          if (!profile) {
+            return `Profile "${input}" not found in deletable profiles`;
+          }
+          return true;
+        },
       },
     ]);
 
-    if (!profileName) {
+    if (!selection.trim()) {
       Logger.info('↩️  Returning to main menu...');
       return;
     }
 
+    // Determine the profile
+    let selectedProfile: ProfileMetadata | undefined;
+    const num = parseInt(selection);
+    if (!isNaN(num)) {
+      selectedProfile = sortedDeletableProfiles[num - 1];
+    } else {
+      selectedProfile = sortedDeletableProfiles.find(p => p.name === selection.trim());
+    }
+
+    if (!selectedProfile) {
+      Logger.error('Profile not found');
+      return;
+    }
+
+    const profileToolType = selectedProfile.toolType || 'claude';
+    
     Logger.newLine();
-    await deleteProfile(profileName, toolType);
+    await deleteProfile(selectedProfile.name, profileToolType);
   } catch (error) {
-    // User cancelled (Ctrl+C or ESC)
+    // User cancelled
     Logger.newLine();
-    Logger.info('↩️  Returning to main menu...');
+    Logger.info('↩️  Cancelled.');
+    return;
   }
 }

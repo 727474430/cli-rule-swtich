@@ -84,4 +84,5 @@ export interface BackupMetadata {
   timestamp: string;        // ISO timestamp used as directory name
   date: Date;              // Parsed date object
   profileName?: string;    // Name of the profile when backup was created
+  toolType?: ToolType;     // Tool type of the backup
 }

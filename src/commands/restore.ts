@@ -20,36 +20,76 @@ function formatDate(date: Date): string {
 }
 
 /**
- * List all backups
+ * Sort backups: by tool type (claude first), then by date (newest first)
  */
-export async function listBackups(toolType: ToolType = 'claude'): Promise<void> {
-  const manager = new ProfileManager(toolType);
-  await manager.initialize();
+function sortBackupsByToolAndDate(backups: any[]): any[] {
+  return backups.sort((a, b) => {
+    // First, sort by tool type (claude before codex)
+    if (a.toolType !== b.toolType) {
+      return a.toolType === 'claude' ? -1 : 1;
+    }
+    // Within same tool type, sort by date (newest first)
+    return b.date.getTime() - a.date.getTime();
+  });
+}
 
-  const backups = await manager.listBackups();
+/**
+ * List all backups from all tools
+ */
+export async function listBackups(toolType?: ToolType): Promise<void> {
+  // Get backups from both tools
+  const claudeManager = new ProfileManager('claude');
+  const codexManager = new ProfileManager('codex');
+  await claudeManager.initialize();
+  await codexManager.initialize();
 
-  if (backups.length === 0) {
-    Logger.warning(`No ${toolType} backups found`);
+  const claudeBackups = await claudeManager.listBackups();
+  const codexBackups = await codexManager.listBackups();
+  const allBackups = sortBackupsByToolAndDate([...claudeBackups, ...codexBackups]);
+
+  if (allBackups.length === 0) {
+    Logger.warning('No backups found');
     Logger.info('Backups are created automatically when you switch profiles');
     return;
   }
 
-  const toolLabel = toolType === 'claude' ? 'Claude Code' : 'Codex';
-  Logger.header(`Available ${toolLabel} Backups`);
+  Logger.header('Available Backups (All Tools)');
   Logger.newLine();
 
   const table = new Table({
-    head: [
-      chalk.cyan('#'),
-      chalk.cyan('Profile'),
-      chalk.cyan('Backup Time'),
-    ],
-    colWidths: [5, 20, 25],
+    colWidths: [5, 8, 20, 25],
   });
 
-  backups.forEach((backup, index) => {
+  let lastToolType: string | null = null;
+
+  allBackups.forEach((backup, index) => {
+    // Add group header for each tool type
+    if (lastToolType !== backup.toolType) {
+      const toolLabel = backup.toolType === 'claude' ? chalk.blue('Claude') : chalk.magenta('Codex');
+      const separator = chalk.gray('─'.repeat(20));
+      table.push([
+        { colSpan: 4, content: `${separator} ${toolLabel} ${separator}` }
+      ]);
+      
+      // Add column headers
+      table.push([
+        chalk.cyan('#'),
+        chalk.cyan('Tool'),
+        chalk.cyan('Profile'),
+        chalk.cyan('Backup Time'),
+      ]);
+    }
+    lastToolType = backup.toolType;
+
+    const toolLabel = backup.toolType === 'claude'
+      ? chalk.blue('Claude')
+      : backup.toolType === 'codex'
+      ? chalk.magenta('Codex')
+      : chalk.gray('unknown');
+    
     table.push([
       (index + 1).toString(),
+      toolLabel,
       backup.profileName || chalk.gray('unknown'),
       formatDate(backup.date),
     ]);
@@ -57,48 +97,120 @@ export async function listBackups(toolType: ToolType = 'claude'): Promise<void> 
 
   console.log(table.toString());
   Logger.newLine();
-  Logger.info(`Total backups: ${chalk.green.bold(backups.length.toString())}`);
-  Logger.info(`Restore a backup with: ${chalk.cyan(`crs restore <timestamp> --tool ${toolType}`)}`);
+  Logger.info(`Total backups: ${chalk.green.bold(allBackups.length.toString())}`);
+  Logger.info(`Restore a backup with: ${chalk.cyan('crs restore')}`);
 }
 
 /**
  * Restore a specific backup
  */
-export async function restoreBackup(timestamp?: string, toolType: ToolType = 'claude'): Promise<void> {
-  const manager = new ProfileManager(toolType);
-  await manager.initialize();
+export async function restoreBackup(timestamp?: string, toolType?: ToolType): Promise<void> {
+  // Get backups from both tools
+  const claudeManager = new ProfileManager('claude');
+  const codexManager = new ProfileManager('codex');
+  await claudeManager.initialize();
+  await codexManager.initialize();
 
-  const backups = await manager.listBackups();
+  const claudeBackups = await claudeManager.listBackups();
+  const codexBackups = await codexManager.listBackups();
+  const allBackups = sortBackupsByToolAndDate([...claudeBackups, ...codexBackups]);
 
-  if (backups.length === 0) {
+  if (allBackups.length === 0) {
     Logger.warning('No backups available to restore');
     return;
   }
 
   // If no timestamp provided, show interactive selection
   if (!timestamp) {
-    Logger.header('Select a Backup to Restore');
+    Logger.header('Available Backups to Restore');
     Logger.newLine();
 
-    const choices = backups.map((backup, index) => {
-      const profileName = backup.profileName || 'unknown';
-      const formattedDate = formatDate(backup.date);
-      return {
-        name: `${index + 1}. [${profileName}] ${formattedDate}`,
-        value: backup.timestamp,
-      };
+    // Display backups in table format
+    const table = new Table({
+      colWidths: [5, 8, 20, 25],
     });
 
-    const { selectedTimestamp } = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'selectedTimestamp',
-        message: 'Select a backup to restore:',
-        choices,
-      },
-    ]);
+    let lastToolType: string | null = null;
 
-    timestamp = selectedTimestamp;
+    allBackups.forEach((backup, index) => {
+      // Add group header for each tool type
+      if (lastToolType !== backup.toolType) {
+        const toolLabel = backup.toolType === 'claude' ? chalk.blue('Claude') : chalk.magenta('Codex');
+        const separator = chalk.gray('─'.repeat(20));
+        table.push([
+          { colSpan: 4, content: `${separator} ${toolLabel} ${separator}` }
+        ]);
+        
+        // Add column headers
+        table.push([
+          chalk.cyan('#'),
+          chalk.cyan('Tool'),
+          chalk.cyan('Profile'),
+          chalk.cyan('Backup Time'),
+        ]);
+      }
+      lastToolType = backup.toolType;
+
+      const toolLabel = backup.toolType === 'claude'
+        ? chalk.blue('Claude')
+        : backup.toolType === 'codex'
+        ? chalk.magenta('Codex')
+        : chalk.gray('unknown');
+      
+      table.push([
+        (index + 1).toString(),
+        toolLabel,
+        backup.profileName || chalk.gray('unknown'),
+        formatDate(backup.date),
+      ]);
+    });
+
+    console.log(table.toString());
+    Logger.newLine();
+
+    try {
+      const { selection } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'selection',
+          message: `Enter backup number ${chalk.gray('(Enter to cancel)')}: `,
+          validate: (input: string) => {
+            if (!input.trim()) {
+              return true; // Allow empty to cancel
+            }
+            
+            // Only allow number input
+            const num = parseInt(input);
+            if (isNaN(num)) {
+              return 'Please enter a valid backup number';
+            }
+            if (num < 1 || num > allBackups.length) {
+              return `Please enter a number between 1 and ${allBackups.length}`;
+            }
+            return true;
+          },
+        },
+      ]);
+
+      if (!selection.trim()) {
+        Logger.info('↩️  Cancelled.');
+        return;
+      }
+
+      // Get the selected backup
+      const num = parseInt(selection);
+      const selectedBackup = allBackups[num - 1];
+      timestamp = selectedBackup.timestamp;
+      
+      // Determine which manager to use based on backup's toolType
+      const backupToolType = selectedBackup.toolType || 'claude';
+      const manager = backupToolType === 'claude' ? claudeManager : codexManager;
+    } catch (error) {
+      // User cancelled
+      Logger.newLine();
+      Logger.info('↩️  Cancelled.');
+      return;
+    }
   }
 
   // Confirm restoration
@@ -122,9 +234,21 @@ export async function restoreBackup(timestamp?: string, toolType: ToolType = 'cl
     return;
   }
 
+  // If timestamp is set (either from parameter or selection), determine the tool type
+  let manager: ProfileManager;
+  if (timestamp) {
+    // Find the backup to determine its tool type
+    const selectedBackup = allBackups.find(b => b.timestamp === timestamp);
+    const backupToolType = selectedBackup?.toolType || 'claude';
+    manager = backupToolType === 'claude' ? claudeManager : codexManager;
+  } else {
+    // Shouldn't reach here, but default to claude
+    manager = claudeManager;
+  }
+  
   const spinner = ora(`Restoring backup "${timestamp}"...`).start();
 
-  const result = await manager.restoreBackup(timestamp);
+  const result = await manager.restoreBackup(timestamp!);
 
   if (result.success) {
     spinner.succeed(result.message);

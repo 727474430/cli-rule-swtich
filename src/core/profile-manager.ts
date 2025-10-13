@@ -480,7 +480,7 @@ Add your agents configuration here.
   /**
    * List all available backups
    */
-  async listBackups(): Promise<Array<{ timestamp: string; date: Date; profileName?: string }>> {
+  async listBackups(): Promise<Array<{ timestamp: string; date: Date; profileName?: string; toolType?: ToolType }>> {
     try {
       if (!(await fs.pathExists(this.paths.backupDir))) {
         return [];
@@ -494,20 +494,29 @@ Add your agents configuration here.
             // Try to read backup metadata
             const metadataPath = path.join(this.paths.backupDir, timestamp, 'backup.json');
             let profileName: string | undefined;
+            let toolType: ToolType | undefined;
 
             try {
               if (await fs.pathExists(metadataPath)) {
                 const metadata = await fs.readJson(metadataPath);
                 profileName = metadata.profileName;
+                toolType = metadata.toolType;
               }
             } catch {
               // Ignore metadata read errors
             }
 
+            // Parse timestamp back to date
+            // Timestamp format is like: 2024-01-15T12-30-45-123Z
+            // Need to restore : and . for proper ISO format
+            const isoString = timestamp
+              .replace(/^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/, '$1-$2-$3T$4:$5:$6.$7Z');
+            
             return {
               timestamp,
-              date: new Date(timestamp.replace(/-/g, ':')),
+              date: new Date(isoString),
               profileName,
+              toolType,
             };
           })
       );

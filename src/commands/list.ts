@@ -80,6 +80,25 @@ export async function listProfiles(toolType?: ToolType): Promise<void> {
 }
 
 /**
+ * Sort profiles: default first, then by name, grouped by tool type
+ */
+function sortProfilesByToolAndDefault(profiles: any[]): any[] {
+  return profiles.sort((a, b) => {
+    // First, sort by tool type (claude before codex)
+    if (a.toolType !== b.toolType) {
+      return a.toolType === 'claude' ? -1 : 1;
+    }
+    
+    // Within same tool type, default comes first
+    if (a.name === 'default' && b.name !== 'default') return -1;
+    if (a.name !== 'default' && b.name === 'default') return 1;
+    
+    // Otherwise sort alphabetically by name
+    return a.name.localeCompare(b.name);
+  });
+}
+
+/**
  * List profiles from all tools (Claude and Codex)
  */
 async function listAllToolsProfiles(): Promise<void> {
@@ -92,7 +111,7 @@ async function listAllToolsProfiles(): Promise<void> {
   const claudeProfiles = await claudeManager.listProfiles();
   const codexProfiles = await codexManager.listProfiles();
 
-  const allProfiles = [...claudeProfiles, ...codexProfiles];
+  const allProfiles = sortProfilesByToolAndDefault([...claudeProfiles, ...codexProfiles]);
 
   if (allProfiles.length === 0) {
     Logger.warning('No profiles found');
@@ -104,18 +123,34 @@ async function listAllToolsProfiles(): Promise<void> {
   Logger.newLine();
 
   const table = new Table({
-    head: [
-      chalk.cyan('Tool'),
-      chalk.cyan('Name'),
-      chalk.cyan('Description'),
-      chalk.cyan('Created'),
-      chalk.cyan('Status'),
-    ],
     colWidths: [8, 18, 30, 20, 12],
     wordWrap: true,
   });
 
+  let lastToolType: string | null = null;
+  
   for (const profile of allProfiles) {
+    // Add group header and column headers for each tool type
+    if (lastToolType !== profile.toolType) {
+      const toolLabel = profile.toolType === 'claude' ? chalk.blue('Claude') : chalk.magenta('Codex');
+      const separator = chalk.gray('─'.repeat(25));
+      
+      // Add group title
+      table.push([
+        { colSpan: 5, content: `${separator} ${toolLabel} ${separator}` }
+      ]);
+      
+      // Add column headers
+      table.push([
+        chalk.cyan('Tool'),
+        chalk.cyan('Name'),
+        chalk.cyan('Description'),
+        chalk.cyan('Created'),
+        chalk.cyan('Status'),
+      ]);
+    }
+    lastToolType = profile.toolType;
+    
     const status = profile.isCurrent ? chalk.green('● Current') : '';
     
     // Format tool type
