@@ -66,7 +66,7 @@ export class ProfileManager {
   }
 
   /**
-   * Create default profile from current ~/.claude configuration if no profiles exist
+   * Create default profile from current ~/.claude or ~/.codex configuration if no profiles exist
    */
   private async createDefaultProfileIfNeeded(): Promise<void> {
     // Check if any profiles already exist
@@ -75,28 +75,12 @@ export class ProfileManager {
       return; // Profiles already exist, no need to create default
     }
 
-    // Try to read current configuration if target directory exists
-    let hasContent = false;
-    let files: ClaudeFiles | CodexFiles | undefined;
-
+    // If target directory exists, always read and copy from it
+    // This ensures we preserve the actual state of ~/.claude or ~/.codex
     if (await fs.pathExists(this.paths.targetDir)) {
-      const readFiles = await this.readTargetFiles();
-      if (this.toolType === 'claude') {
-        const cf = readFiles as ClaudeFiles;
-        const hasAgents = (cf.agents?.length ?? 0) > 0;
-        const hasWorkflows = (cf.workflows?.length ?? 0) > 0;
-        const hasCommands = (cf.commands?.length ?? 0) > 0;
-        hasContent = Boolean(cf.claudeMd) || hasAgents || hasWorkflows || hasCommands;
-        if (hasContent) files = cf;
-      } else {
-        const xf = readFiles as CodexFiles;
-        hasContent = Boolean(xf.agentsMd);
-        if (hasContent) files = xf;
-      }
-    }
-
-    if (hasContent && files) {
-      // Create default profile from existing configuration
+      const files = await this.readTargetFiles();
+      
+      // Create default profile from existing directory (even if files are empty or missing)
       const defaultProfile: Profile = {
         name: 'default',
         description: `Default configuration from ${this.toolType === 'claude' ? '~/.claude' : '~/.codex'}`,
@@ -106,7 +90,7 @@ export class ProfileManager {
       };
       await this.saveProfile(defaultProfile);
     } else {
-      // Create an empty default profile when no existing configuration is found
+      // Target directory doesn't exist, create empty profile with default template
       const description = 'Empty default profile';
       const result = await this.createEmpty('default', description);
       if (!result.success) {

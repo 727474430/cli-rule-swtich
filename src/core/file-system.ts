@@ -32,7 +32,7 @@ async function readDirectoryFiles(dirPath: string): Promise<DirectoryFile[]> {
 export async function readClaudeFiles(claudeDir: string): Promise<ClaudeFiles> {
   const files: ClaudeFiles = {};
 
-  // Read CLAUDE.md
+  // Read CLAUDE.md (even if empty)
   const claudeMdPath = path.join(claudeDir, CLAUDE_FILES.CLAUDE_MD);
   if (await fs.pathExists(claudeMdPath)) {
     files.claudeMd = await fs.readFile(claudeMdPath, 'utf-8');
@@ -43,6 +43,9 @@ export async function readClaudeFiles(claudeDir: string): Promise<ClaudeFiles> {
   const agentsFiles = await readDirectoryFiles(agentsDir);
   if (agentsFiles.length > 0) {
     files.agents = agentsFiles;
+  } else if (await fs.pathExists(agentsDir)) {
+    // Directory exists but empty, preserve as empty array
+    files.agents = [];
   }
 
   // Read workflows directory
@@ -50,6 +53,9 @@ export async function readClaudeFiles(claudeDir: string): Promise<ClaudeFiles> {
   const workflowsFiles = await readDirectoryFiles(workflowsDir);
   if (workflowsFiles.length > 0) {
     files.workflows = workflowsFiles;
+  } else if (await fs.pathExists(workflowsDir)) {
+    // Directory exists but empty, preserve as empty array
+    files.workflows = [];
   }
 
   // Read commands directory
@@ -57,6 +63,9 @@ export async function readClaudeFiles(claudeDir: string): Promise<ClaudeFiles> {
   const commandsFiles = await readDirectoryFiles(commandsDir);
   if (commandsFiles.length > 0) {
     files.commands = commandsFiles;
+  } else if (await fs.pathExists(commandsDir)) {
+    // Directory exists but empty, preserve as empty array
+    files.commands = [];
   }
 
   return files;
@@ -103,7 +112,7 @@ export async function writeClaudeFiles(
   await fs.ensureDir(claudeDir);
 
   // Write CLAUDE.md
-  if (files.claudeMd) {
+  if (files.claudeMd !== undefined) {
     await fs.writeFile(
       path.join(claudeDir, CLAUDE_FILES.CLAUDE_MD),
       files.claudeMd
@@ -111,21 +120,36 @@ export async function writeClaudeFiles(
   }
 
   // Write agents directory
-  if (files.agents && files.agents.length > 0) {
+  if (files.agents !== undefined) {
     const agentsDir = path.join(claudeDir, CLAUDE_FILES.AGENTS_DIR);
-    await writeDirectoryFiles(agentsDir, files.agents);
+    if (files.agents.length > 0) {
+      await writeDirectoryFiles(agentsDir, files.agents);
+    } else {
+      // Create empty directory
+      await fs.ensureDir(agentsDir);
+    }
   }
 
   // Write workflows directory
-  if (files.workflows && files.workflows.length > 0) {
+  if (files.workflows !== undefined) {
     const workflowsDir = path.join(claudeDir, CLAUDE_FILES.WORKFLOWS_DIR);
-    await writeDirectoryFiles(workflowsDir, files.workflows);
+    if (files.workflows.length > 0) {
+      await writeDirectoryFiles(workflowsDir, files.workflows);
+    } else {
+      // Create empty directory
+      await fs.ensureDir(workflowsDir);
+    }
   }
 
   // Write commands directory
-  if (files.commands && files.commands.length > 0) {
+  if (files.commands !== undefined) {
     const commandsDir = path.join(claudeDir, CLAUDE_FILES.COMMANDS_DIR);
-    await writeDirectoryFiles(commandsDir, files.commands);
+    if (files.commands.length > 0) {
+      await writeDirectoryFiles(commandsDir, files.commands);
+    } else {
+      // Create empty directory
+      await fs.ensureDir(commandsDir);
+    }
   }
 }
 
