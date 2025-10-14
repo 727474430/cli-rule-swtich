@@ -69,7 +69,7 @@ crs --help   # 查看帮助
 crs list     # 列出所有配置
 ```
 
-### 方式 2: 从源码构建
+### 方式 2: 从源码全局安装
 
 ```bash
 # 克隆仓库
@@ -80,20 +80,32 @@ cd cli-rule-switcher
 npm install
 npm run build
 
-# 全局链接
+# 全局安装
+npm install -g .
+
+# 验证安装
+crs --version
+```
+
+### 方式 3: 使用 npm link（开发模式）
+
+```bash
+# 克隆仓库
+git clone https://github.com/yourusername/cli-rule-switcher.git
+cd cli-rule-switcher
+
+# 安装依赖并构建
+npm install
+npm run build
+
+# 创建全局链接
 npm link
 
 # 验证安装
 crs --version
 ```
 
-### 方式 3: npx 直接运行（无需安装）
-
-```bash
-npx cli-rule-switcher
-npx cli-rule-switcher list
-npx cli-rule-switcher use development
-```
+> **注意**: `npm link` 创建的是符号链接，适合开发调试；`npm install -g .` 是实际安装，更稳定。
 
 ## 🚀 快速开始
 
