@@ -1,0 +1,11 @@
+{
+  "name": "ace",
+  "displayName": "ACE (Advanced Code Engineering)",
+  "description": "TokenRoll's intelligent workflow with sub-agent architecture. Features context-efficient research (83% reduction), smart Git automation, and viral product ideation tools.",
+  "toolType": "claude",
+  "category": "development",
+  "tags": ["research", "git", "workflow", "sub-agents", "automation"],
+  "author": "TokenRoll Team (DJJ & Danniel)",
+  "version": "1.0.0",
+  "createdAt": "2025-01-14T00:00:00.000Z"
+}

@@ -9,6 +9,7 @@ import { createProfile } from './commands/create';
 import { deleteProfile } from './commands/delete';
 import { listBackups, restoreBackup } from './commands/restore';
 import { interactiveMode } from './commands/interactive';
+import { registerTemplateCommands } from './commands/template';
 import { Logger } from './utils/logger';
 
 const program = new Command();
@@ -16,7 +17,7 @@ const program = new Command();
 program
   .name('crs')
   .description('CLI Rule Switch - Manage and switch between multiple Claude Code and Codex configuration profiles')
-  .version('1.3.0')
+  .version('1.4.0')
   .option('-t, --tool <type>', 'Tool type: claude or codex (default: claude)', 'claude');
 
 // List command
@@ -153,6 +154,9 @@ restoreCommand.action(async (timestamp?: string) => {
     process.exit(1);
   }
 });
+
+// Register template commands
+registerTemplateCommands(program);
 
 // Interactive mode (default when no command is provided)
 program.action(async () => {

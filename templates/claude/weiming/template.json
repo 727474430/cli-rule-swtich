@@ -1,0 +1,11 @@
+{
+  "name": "weiming",
+  "displayName": "Weiming (未名配置)",
+  "description": "Professional development workflow with 10 specialized agents and comprehensive commands. Features Chinese-first responses, Occam's Razor principle, and eight honors and eight shames guidelines.",
+  "toolType": "claude",
+  "category": "development",
+  "tags": ["chinese", "professional", "comprehensive", "workflow", "best-practices"],
+  "author": "Weiming Team",
+  "version": "1.0.0",
+  "createdAt": "2025-01-14T00:00:00.000Z"
+}

@@ -10,6 +10,7 @@ import { createProfile } from './create';
 import { deleteProfile } from './delete';
 import { listProfiles } from './list';
 import { listBackups, restoreBackup } from './restore';
+import { listTemplates, interactiveTemplateInstall } from './template';
 
 /**
  * Interactive mode
@@ -22,18 +23,16 @@ export async function interactiveMode(toolType: ToolType = 'claude'): Promise<vo
   const profiles = await manager.listProfiles();
   const hasDefaultProfile = profiles.some((p) => p.name === 'default');
 
-  const toolLabel = toolType === 'claude' ? 'Claude Code' : 'Codex';
-  const targetDir = toolType === 'claude' ? '~/.claude' : '~/.codex';
-  
   Logger.box(
-    chalk.bold(`${toolLabel} Profile Switcher`) +
+    chalk.bold('CRS - CLI Rule Switch') +
       '\n\n' +
-      `Manage and switch between multiple ${toolLabel} configurations`,
+      'Manage and switch between multiple Claude Code and Codex configurations',
     '🔄 Welcome'
   );
 
   // Show info about default profile if it exists and is the only one
   if (hasDefaultProfile && profiles.length === 1) {
+    const targetDir = toolType === 'claude' ? '~/.claude' : '~/.codex';
     Logger.info(
       `A default profile has been created from your current ${targetDir} configuration`
     );
@@ -54,11 +53,15 @@ export async function interactiveMode(toolType: ToolType = 'claude'): Promise<vo
     const currentProfile = await manager.getCurrentProfile();
 
     const choices = [
+      new inquirer.Separator(chalk.cyan('─── Profile Management ───')),
       { name: '📋 List all profiles', value: 'list' },
       { name: '🔄 Switch profile', value: 'use' },
       { name: '💾 Save current config as new profile', value: 'save' },
       { name: '➕ Create empty profile', value: 'create' },
       { name: '🗑️  Delete profile', value: 'delete' },
+      new inquirer.Separator(),
+      { name: '📜 List templates', value: 'templates' },
+      { name: '📦 Install from template', value: 'template-install' },
       new inquirer.Separator(),
       { name: '📦 List backups', value: 'backups' },
       { name: '♻️  Restore backup', value: 'restore' },
@@ -100,6 +103,14 @@ export async function interactiveMode(toolType: ToolType = 'claude'): Promise<vo
 
       case 'delete':
         await handleDeleteProfile(allProfiles);
+        break;
+
+      case 'templates':
+        await listTemplates();
+        break;
+
+      case 'template-install':
+        await interactiveTemplateInstall();
         break;
 
       case 'backups':

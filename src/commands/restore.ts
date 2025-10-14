@@ -1,5 +1,6 @@
 import Table from 'cli-table3';
 import chalk from 'chalk';
+import boxen from 'boxen';
 import inquirer from 'inquirer';
 import ora from 'ora';
 import { ToolType } from '../types';
@@ -251,12 +252,36 @@ export async function restoreBackup(timestamp?: string, toolType?: ToolType): Pr
   const result = await manager.restoreBackup(timestamp!);
 
   if (result.success) {
-    spinner.succeed(result.message);
-    Logger.newLine();
-    Logger.box(
-      `Backup restored successfully!\n\nYour configuration has been restored to the state from:\n${timestamp}`,
-      'Success'
+    spinner.succeed(chalk.green(`Restored backup from ${timestamp}`));
+    console.log();
+    console.log(
+      boxen(
+        chalk.green.bold('✓ Backup Restored Successfully'),
+        {
+          padding: 1,
+          margin: 1,
+          borderStyle: 'round',
+          borderColor: 'green',
+        }
+      )
     );
+    
+    const backupToolType = allBackups.find(b => b.timestamp === timestamp)?.toolType || 'claude';
+    const toolLabel = backupToolType === 'claude' ? '🤖 Claude Code' : '⚙️  Codex';
+    const configPath = backupToolType === 'claude' ? '~/.claude' : '~/.codex';
+    
+    console.log(chalk.bold('Backup Time:'), formatDate(new Date(timestamp.replace(/^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/, '$1-$2-$3T$4:$5:$6.$7Z'))));
+    console.log(chalk.bold('Tool:'), toolLabel);
+    console.log(chalk.bold('Config Path:'), chalk.cyan(configPath));
+    console.log();
+    console.log(chalk.green('✓'), 'Configuration restored to backup state');
+    console.log(chalk.green('✓'), 'Previous configuration backed up automatically');
+    console.log(chalk.yellow('⚠'), chalk.yellow('Current profile cleared - no active profile'));
+    console.log();
+    console.log(chalk.cyan('💡 Next steps:'));
+    console.log(chalk.gray('  crs save <name>       # Save restored config as new profile'));
+    console.log(chalk.gray('  crs use <profile>     # Switch to an existing profile'));
+    console.log(chalk.gray('  crs list              # View all profiles'));
   } else {
     spinner.fail(result.message);
     if (result.error) {

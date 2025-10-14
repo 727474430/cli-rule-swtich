@@ -1,4 +1,6 @@
 import ora from 'ora';
+import chalk from 'chalk';
+import boxen from 'boxen';
 import { ToolType } from '../types';
 import { ProfileManager } from '../core/profile-manager';
 import { Logger } from '../utils/logger';
@@ -36,13 +38,34 @@ export async function useProfile(name: string, toolType: ToolType = 'claude'): P
   const result = await manager.switchToProfile(name);
 
   if (result.success) {
-    spinner.succeed(result.message);
-    Logger.newLine();
-    const toolLabel = toolType === 'claude' ? 'Claude Code' : 'Codex';
-    Logger.box(
-      `Profile "${name}" is now active!\n\nYour ${toolLabel} configuration has been updated.`,
-      'Success'
+    spinner.succeed(chalk.green(`Switched to profile "${name}"`));
+    console.log();
+    console.log(
+      boxen(
+        chalk.green.bold('✓ Profile Switched Successfully'),
+        {
+          padding: 1,
+          margin: 1,
+          borderStyle: 'round',
+          borderColor: 'green',
+        }
+      )
     );
+    
+    const toolLabel = toolType === 'claude' ? '🤖 Claude Code' : '⚙️  Codex';
+    const configPath = toolType === 'claude' ? '~/.claude' : '~/.codex';
+    
+    console.log(chalk.bold('Profile:'), chalk.green(name));
+    console.log(chalk.bold('Tool:'), toolLabel);
+    console.log(chalk.bold('Config Path:'), chalk.cyan(configPath));
+    console.log();
+    console.log(chalk.green('✓'), 'Your configuration has been updated');
+    console.log(chalk.green('✓'), 'Previous configuration backed up automatically');
+    console.log();
+    console.log(chalk.cyan('💡 Other commands:'));
+    console.log(chalk.gray('  crs list              # View all profiles'));
+    console.log(chalk.gray('  crs backup            # View backup history'));
+    console.log(chalk.gray('  crs restore           # Restore from backup'));
   } else {
     spinner.fail(result.message);
     if (result.error) {

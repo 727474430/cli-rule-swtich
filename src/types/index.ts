@@ -86,3 +86,38 @@ export interface BackupMetadata {
   profileName?: string;    // Name of the profile when backup was created
   toolType?: ToolType;     // Tool type of the backup
 }
+
+/**
+ * Template metadata interface
+ */
+export interface TemplateMetadata {
+  name: string;
+  displayName: string;
+  description: string;
+  toolType: ToolType;
+  category: string;
+  tags: string[];
+  author: string;
+  version: string;
+  createdAt: string;
+}
+
+/**
+ * Template structure
+ */
+export interface Template {
+  metadata: TemplateMetadata;
+  path: string;           // Full path to template directory
+}
+
+/**
+ * Template for listing
+ */
+export interface TemplateListItem {
+  name: string;
+  displayName: string;
+  description: string;
+  toolType: ToolType;
+  category: string;
+  tags: string[];
+}

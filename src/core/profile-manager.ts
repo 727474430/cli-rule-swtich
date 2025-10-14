@@ -555,6 +555,12 @@ Add your agents configuration here.
       // Write backup files to target directory
       await this.writeTargetFiles(files);
 
+      // Clear current profile marker since restored configuration
+      // may not match any existing profile
+      if (await fs.pathExists(this.paths.currentFile)) {
+        await fs.remove(this.paths.currentFile);
+      }
+
       return {
         success: true,
         message: `Restored backup from ${timestamp}`,
