@@ -1,6 +1,6 @@
 {
   "name": "cli-rule-switcher",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "CLI Rule Switcher - A CLI tool to manage and switch between multiple Claude Code configuration profiles",
   "main": "dist/index.js",
   "bin": {
