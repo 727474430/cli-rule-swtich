@@ -57,7 +57,6 @@ crs
 ```bash
 # 列出所有配置
 crs list
-crs list --tool claude
 crs list --tool codex
 
 # 切换配置
