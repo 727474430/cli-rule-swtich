@@ -24,16 +24,16 @@
     "workflow",
     "productivity"
   ],
-  "author": "",
+  "author": "raindropwl",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/cli-rule-switcher.git"
+    "url": "https://github.com/727474430/cli-rule-swtich.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/cli-rule-switcher/issues"
+    "url": "https://github.com/727474430/cli-rule-swtich/issues"
   },
-  "homepage": "https://github.com/yourusername/cli-rule-switcher#readme",
+  "homepage": "https://github.com/727474430/cli-rule-swtich#readme",
   "files": [
     "dist",
     "templates",
