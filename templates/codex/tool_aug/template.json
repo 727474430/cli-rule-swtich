@@ -1,0 +1,11 @@
+{
+  "name": "tool_aug",
+  "displayName": "Tool Augmentation",
+  "description": "Tool Augmentation for Codex",
+  "toolType": "codex",
+  "category": "development",
+  "tags": ["tool", "augmentation"],
+  "author": "",
+  "version": "1.0.0",
+  "createdAt": "2025-10-15T00:00:00.000Z"
+}

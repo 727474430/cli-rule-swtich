@@ -116,8 +116,27 @@ export async function installTemplate(
   profileName: string,
   options: { tool?: ToolType; description?: string }
 ): Promise<void> {
-  const toolType = options.tool || 'claude';
   const templateManager = new TemplateManager();
+  
+  // Auto-detect tool type if not specified
+  let toolType = options.tool;
+  if (!toolType) {
+    // Try to find the template in both claude and codex
+    const claudeTemplate = templateManager.getTemplate(templateName, 'claude');
+    const codexTemplate = templateManager.getTemplate(templateName, 'codex');
+    
+    if (claudeTemplate) {
+      toolType = 'claude';
+    } else if (codexTemplate) {
+      toolType = 'codex';
+    } else {
+      console.log(chalk.red(`✖ Template '${templateName}' not found`));
+      console.log();
+      console.log(chalk.cyan('💡 Available templates:'));
+      await listTemplates();
+      return;
+    }
+  }
 
   const result = await templateManager.installTemplate(
     templateName,
@@ -262,7 +281,7 @@ export function registerTemplateCommands(program: Command): void {
   template
     .command('install <template-name> <profile-name>')
     .description('Install a template as a new profile')
-    .option('-t, --tool <type>', 'Tool type (claude or codex)', 'claude')
+    .option('-t, --tool <type>', 'Tool type (claude or codex)')
     .option('-d, --description <desc>', 'Profile description')
     .action(async (templateName, profileName, options) => {
       await installTemplate(templateName, profileName, {
