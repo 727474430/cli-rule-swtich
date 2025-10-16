@@ -297,8 +297,11 @@ export class RemoteManager {
     // Create profile directory
     await fs.ensureDir(profileDir);
 
+    // Normalize file paths - remove common prefix
+    const normalizedFiles = this.normalizeFilePaths(files);
+
     // Save files
-    for (const file of files) {
+    for (const file of normalizedFiles) {
       const filePath = path.join(profileDir, file.path);
       await fs.ensureDir(path.dirname(filePath));
       await fs.writeFile(filePath, file.content, 'utf-8');
@@ -317,6 +320,50 @@ export class RemoteManager {
       metadata,
       { spaces: 2 }
     );
+  }
+
+  /**
+   * Normalize file paths by removing common prefix
+   * e.g., "templates/claude/ace/CLAUDE.md" -> "CLAUDE.md"
+   *       "templates/claude/ace/agents/scout.md" -> "agents/scout.md"
+   */
+  private normalizeFilePaths(files: RemoteFile[]): RemoteFile[] {
+    if (files.length === 0) return files;
+
+    // Split all paths into segments
+    const paths = files.map(f => f.path.split('/'));
+
+    if (paths.length === 0) return files;
+
+    // Find common prefix length
+    let commonPrefixLength = 0;
+    const firstPath = paths[0];
+
+    for (let i = 0; i < firstPath.length; i++) {
+      const segment = firstPath[i];
+      // Check if all paths have this segment at position i
+      if (paths.every(p => p.length > i && p[i] === segment)) {
+        // This is a common segment
+        // But check if this is the last common segment and if it's a known directory
+        const knownDirs = ['agents', 'workflows', 'commands'];
+        const isLastCommonSegment = !paths.every(p => p.length > i + 1 && p[i + 1] === firstPath[i + 1]);
+
+        if (isLastCommonSegment && knownDirs.includes(segment)) {
+          // Don't include known directories in common prefix - keep them
+          break;
+        }
+
+        commonPrefixLength = i + 1;
+      } else {
+        break;
+      }
+    }
+
+    // Remove common prefix from all paths
+    return files.map(file => ({
+      ...file,
+      path: file.path.split('/').slice(commonPrefixLength).join('/') || file.path,
+    }));
   }
 }
 
