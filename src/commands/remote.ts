@@ -6,6 +6,7 @@ import Table from 'cli-table3';
 import { createRemoteManager } from '../core/remote-manager.js';
 import { ToolType } from '../types/index.js';
 import { Logger } from '../utils/logger.js';
+import { isGitHubUrl } from '../utils/github-parser.js';
 
 /**
  * Create remote command group
@@ -15,55 +16,11 @@ export function createRemoteCommand(program: Command): void {
     .command('remote')
     .description('Manage remote template sources');
 
-  // Add remote
-  remote
-    .command('add')
-    .description('Add a remote template source')
-    .argument('<url>', 'GitHub repository URL')
-    .argument('[name]', 'Name for this remote')
-    .option('-d, --description <desc>', 'Description for this remote')
-    .option('-t, --tool <type>', 'Tool type: claude or codex')
-    .action(async (url: string, name?: string, options?: any) => {
-      const spinner = ora('Fetching remote template...').start();
-
-      try {
-        const manager = createRemoteManager();
-
-        // Auto-generate name if not provided
-        const remoteName = name || generateRemoteName(url);
-
-        const result = await manager.addRemote(remoteName, url, {
-          description: options?.description,
-          toolType: options?.tool as ToolType,
-        });
-
-        spinner.stop();
-
-        if (result.success) {
-          Logger.success(result.message);
-
-          if (result.validation) {
-            displayValidation(result.validation);
-          }
-        } else {
-          Logger.error(result.message);
-
-          if (result.validation) {
-            displayValidation(result.validation);
-          }
-        }
-
-      } catch (error: any) {
-        spinner.stop();
-        Logger.error(`Failed to add remote: ${error.message}`);
-      }
-    });
-
   // List remotes
   remote
     .command('list')
     .alias('ls')
-    .description('List all remote templates')
+    .description('List all installed remote templates')
     .option('-t, --tool <type>', 'Filter by tool type: claude or codex')
     .action(async (options: any) => {
       const spinner = ora('Loading remotes...').start();
@@ -75,14 +32,14 @@ export function createRemoteCommand(program: Command): void {
         spinner.stop();
 
         if (remotes.length === 0) {
-          Logger.info('No remote templates configured');
-          Logger.info('Add a remote with: crs remote add <url> [name]');
+          Logger.info('No remote templates installed yet');
+          Logger.info('Install a remote with: crs remote install <url> <profile-name>');
           return;
         }
 
         // Display as table
         const table = new Table({
-          head: ['Name', 'Tool', 'URL', 'Branch', 'Last Sync'],
+          head: ['Name', 'Tool', 'URL', 'Branch', 'Last Used'],
           colWidths: [20, 8, 50, 12, 22],
           wordWrap: true,
         });
@@ -195,36 +152,69 @@ export function createRemoteCommand(program: Command): void {
   // Install from remote
   remote
     .command('install')
-    .description('Install a remote template as a profile')
-    .argument('<remote>', 'Remote template name')
+    .description('Install a remote template as a profile (supports URL or saved remote name)')
+    .argument('<source>', 'GitHub URL or saved remote name')
     .argument('<profile>', 'Profile name to create')
     .option('-d, --description <desc>', 'Profile description')
-    .action(async (remoteName: string, profileName: string, options: any) => {
+    .action(async (source: string, profileName: string, options: any) => {
       const spinner = ora('Installing remote template...').start();
 
       try {
         const manager = createRemoteManager();
-        const result = await manager.installRemote(
-          remoteName,
-          profileName,
-          options.description
-        );
 
-        spinner.stop();
+        // Check if source is a URL or a saved remote name
+        const isUrl = isGitHubUrl(source);
 
-        if (result.success) {
-          Logger.success(result.message);
+        if (isUrl) {
+          // Install directly from URL and save the remote
+          const result = await manager.installFromUrl(
+            source,
+            profileName,
+            options.description
+          );
 
-          if (result.validation) {
-            displayValidation(result.validation);
+          spinner.stop();
+
+          if (result.success) {
+            Logger.success(result.message);
+
+            if (result.validation) {
+              displayValidation(result.validation);
+            }
+
+            console.log(chalk.dim(`\nSwitch to profile: ${chalk.cyan(`crs use ${profileName}`)}`));
+            console.log(chalk.dim(`Reuse this remote: ${chalk.cyan(`crs remote install ${result.remoteName} <profile-name>`)}`));
+          } else {
+            Logger.error(result.message);
+
+            if (result.validation) {
+              displayValidation(result.validation);
+            }
           }
-
-          console.log(chalk.dim(`\nSwitch to profile: ${chalk.cyan(`crs use ${profileName}`)}`));
         } else {
-          Logger.error(result.message);
+          // Install from saved remote name
+          const result = await manager.installRemote(
+            source,
+            profileName,
+            options.description
+          );
 
-          if (result.validation) {
-            displayValidation(result.validation);
+          spinner.stop();
+
+          if (result.success) {
+            Logger.success(result.message);
+
+            if (result.validation) {
+              displayValidation(result.validation);
+            }
+
+            console.log(chalk.dim(`\nSwitch to profile: ${chalk.cyan(`crs use ${profileName}`)}`));
+          } else {
+            Logger.error(result.message);
+
+            if (result.validation) {
+              displayValidation(result.validation);
+            }
           }
         }
 

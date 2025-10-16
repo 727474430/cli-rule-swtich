@@ -283,6 +283,110 @@ export class RemoteManager {
   }
 
   /**
+   * Install directly from URL and automatically save the remote
+   */
+  async installFromUrl(
+    url: string,
+    profileName: string,
+    description?: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    validation?: ValidationResult;
+    remoteName?: string;
+  }> {
+    try {
+      // Parse URL
+      const parsed = parseGitHubUrl(url);
+      if (!parsed.isValid) {
+        return {
+          success: false,
+          message: `Invalid GitHub URL: ${url}`,
+        };
+      }
+
+      // Fetch and validate template
+      const fetcher = createFetcher();
+      const files = await fetcher.fetchFromUrl(url);
+
+      const validation = validateTemplate(files);
+      if (!validation.isValid) {
+        return {
+          success: false,
+          message: 'Template validation failed',
+          validation,
+        };
+      }
+
+      // Filter sensitive files
+      const safeFiles = filterSensitiveFiles(files);
+
+      // Generate remote name from URL
+      const remoteName = this.generateRemoteName(url);
+
+      // Save as profile
+      await this.saveAsProfile(
+        profileName,
+        safeFiles,
+        validation.toolType || 'claude',
+        description || `Installed from ${url}`
+      );
+
+      // Get latest commit
+      const commit = await fetcher.getLatestCommit(
+        parsed.owner,
+        parsed.repo,
+        parsed.path || '',
+        parsed.ref
+      );
+
+      // Save or update remote in registry
+      const registry = await this.loadRegistry();
+      registry.remotes[remoteName] = {
+        name: remoteName,
+        url,
+        toolType: validation.toolType || 'claude',
+        branch: parsed.ref,
+        path: parsed.path || undefined,
+        lastSync: new Date().toISOString(),
+        commit: commit || undefined,
+        description: description || `Installed from ${url}`,
+      };
+      await this.saveRegistry(registry);
+
+      return {
+        success: true,
+        message: `Installed as profile '${profileName}' and saved as remote '${remoteName}'`,
+        validation,
+        remoteName,
+      };
+
+    } catch (error: any) {
+      return {
+        success: false,
+        message: `Failed to install from URL: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Generate a unique remote name from URL
+   */
+  private generateRemoteName(url: string): string {
+    try {
+      const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+      if (match) {
+        const baseName = `${match[1]}-${match[2]}`.toLowerCase();
+        // Check if name exists, add number suffix if needed
+        return baseName;
+      }
+    } catch {
+      // fallback
+    }
+    return `remote-${Date.now()}`;
+  }
+
+  /**
    * Save remote files as a local profile
    */
   private async saveAsProfile(
