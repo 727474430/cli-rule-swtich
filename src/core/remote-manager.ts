@@ -316,7 +316,7 @@ export class RemoteManager {
     };
 
     await fs.writeJson(
-      path.join(profileDir, '.profile.json'),
+      path.join(profileDir, 'profile.json'),
       metadata,
       { spaces: 2 }
     );
