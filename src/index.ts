@@ -10,6 +10,7 @@ import { deleteProfile } from './commands/delete';
 import { listBackups, restoreBackup } from './commands/restore';
 import { interactiveMode } from './commands/interactive';
 import { registerTemplateCommands } from './commands/template';
+import { createRemoteCommand } from './commands/remote';
 import { Logger } from './utils/logger';
 
 const program = new Command();
@@ -157,6 +158,9 @@ restoreCommand.action(async (timestamp?: string) => {
 
 // Register template commands
 registerTemplateCommands(program);
+
+// Register remote commands
+createRemoteCommand(program);
 
 // Interactive mode (default when no command is provided)
 program.action(async () => {
