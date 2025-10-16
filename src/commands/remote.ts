@@ -156,6 +156,7 @@ export function createRemoteCommand(program: Command): void {
     .argument('<source>', 'GitHub URL or saved remote name')
     .argument('<profile>', 'Profile name to create')
     .option('-d, --description <desc>', 'Profile description')
+    .option('-t, --tool <type>', 'Tool type: claude or codex (auto-detected if not specified)')
     .action(async (source: string, profileName: string, options: any) => {
       const spinner = ora('Installing remote template...').start();
 
@@ -170,7 +171,8 @@ export function createRemoteCommand(program: Command): void {
           const result = await manager.installFromUrl(
             source,
             profileName,
-            options.description
+            options.description,
+            options.tool as ToolType
           );
 
           spinner.stop();

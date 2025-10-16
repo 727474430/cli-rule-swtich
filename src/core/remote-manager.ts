@@ -288,7 +288,8 @@ export class RemoteManager {
   async installFromUrl(
     url: string,
     profileName: string,
-    description?: string
+    description?: string,
+    toolType?: ToolType
   ): Promise<{
     success: boolean;
     message: string;
@@ -324,11 +325,14 @@ export class RemoteManager {
       // Generate remote name from URL
       const remoteName = this.generateRemoteName(url);
 
+      // Determine tool type: use provided, or detected, or default to claude
+      const finalToolType = toolType || validation.toolType || 'claude';
+
       // Save as profile
       await this.saveAsProfile(
         profileName,
         safeFiles,
-        validation.toolType || 'claude',
+        finalToolType,
         description || `Installed from ${url}`
       );
 
@@ -345,7 +349,7 @@ export class RemoteManager {
       registry.remotes[remoteName] = {
         name: remoteName,
         url,
-        toolType: validation.toolType || 'claude',
+        toolType: finalToolType,
         branch: parsed.ref,
         path: parsed.path || undefined,
         lastSync: new Date().toISOString(),

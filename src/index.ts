@@ -100,18 +100,18 @@ createCommand.action(async (name: string, options: { description?: string }) => 
   }
 });
 
-// Delete command
-const deleteCommand = program
-  .command('delete <profile>')
+// Remove command
+const removeCommand = program
+  .command('remove <profile>')
   .alias('rm')
-  .description('Delete a profile');
+  .description('Remove a profile');
 
-deleteCommand.action(async (profile: string) => {
+removeCommand.action(async (profile: string) => {
   try {
     const toolType = program.opts().tool as ToolType;
     await deleteProfile(profile, toolType);
   } catch (error) {
-    Logger.error('Failed to delete profile');
+    Logger.error('Failed to remove profile');
     if (error instanceof Error) {
       Logger.error(error.message);
     }
