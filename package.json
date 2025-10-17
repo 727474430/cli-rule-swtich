@@ -44,18 +44,19 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "commander": "^11.1.0",
-    "inquirer": "^9.2.12",
-    "chalk": "^5.3.0",
-    "fs-extra": "^11.2.0",
-    "ora": "^7.0.1",
+    "@octokit/rest": "^22.0.0",
     "boxen": "^7.1.1",
-    "cli-table3": "^0.6.3"
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.3",
+    "commander": "^11.1.0",
+    "fs-extra": "^11.2.0",
+    "inquirer": "^9.2.12",
+    "ora": "^7.0.1"
   },
   "devDependencies": {
-    "@types/node": "^20.10.5",
     "@types/fs-extra": "^11.0.4",
     "@types/inquirer": "^9.0.7",
+    "@types/node": "^20.10.5",
     "typescript": "^5.3.3"
   }
 }

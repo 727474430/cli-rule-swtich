@@ -121,3 +121,56 @@ export interface TemplateListItem {
   category: string;
   tags: string[];
 }
+
+/**
+ * Remote template source
+ */
+export interface RemoteTemplate {
+  name: string;              // Unique identifier for this remote
+  url: string;              // GitHub URL
+  toolType: ToolType;       // Tool type (claude/codex)
+  branch: string;           // Git branch/tag
+  path?: string;            // Subdirectory path in repo
+  lastSync?: string;        // Last sync timestamp
+  commit?: string;          // Last synced commit hash
+  description?: string;     // Optional description
+}
+
+/**
+ * Parsed GitHub URL information
+ */
+export interface GitHubUrlInfo {
+  owner: string;            // Repository owner
+  repo: string;             // Repository name
+  ref: string;              // Branch/tag/commit
+  path: string;             // Path within repository
+  isValid: boolean;         // Whether URL is valid
+}
+
+/**
+ * Remote file structure from GitHub
+ */
+export interface RemoteFile {
+  path: string;             // File path relative to base
+  content: string;          // File content
+  size: number;             // File size in bytes
+}
+
+/**
+ * Template validation result
+ */
+export interface ValidationResult {
+  isValid: boolean;
+  toolType?: ToolType;
+  errors: string[];
+  warnings: string[];
+  files: RemoteFile[];
+}
+
+/**
+ * Remote template registry
+ */
+export interface RemoteRegistry {
+  remotes: Record<string, RemoteTemplate>;
+  version: string;
+}

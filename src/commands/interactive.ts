@@ -1,8 +1,10 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import Table from 'cli-table3';
+import ora from 'ora';
 import { ToolType, ProfileMetadata } from '../types';
 import { ProfileManager } from '../core/profile-manager';
+import { createRemoteManager } from '../core/remote-manager';
 import { Logger } from '../utils/logger';
 import { useProfile } from './use';
 import { saveProfile } from './save';
@@ -62,6 +64,9 @@ export async function interactiveMode(toolType: ToolType = 'claude'): Promise<vo
       new inquirer.Separator(),
       { name: '📜 List templates', value: 'templates' },
       { name: '📦 Install from template', value: 'template-install' },
+      new inquirer.Separator(chalk.cyan('─── Remote Templates ───')),
+      { name: '🌐 List remote sources', value: 'remotes' },
+      { name: '🚀 Install from remote', value: 'remote-install' },
       new inquirer.Separator(),
       { name: '📦 List backups', value: 'backups' },
       { name: '♻️  Restore backup', value: 'restore' },
@@ -111,6 +116,14 @@ export async function interactiveMode(toolType: ToolType = 'claude'): Promise<vo
 
       case 'template-install':
         await interactiveTemplateInstall();
+        break;
+
+      case 'remotes':
+        await handleListRemotes();
+        break;
+
+      case 'remote-install':
+        await handleInstallFromRemote();
         break;
 
       case 'backups':
@@ -508,6 +521,200 @@ async function handleDeleteProfile(
     
     Logger.newLine();
     await deleteProfile(selectedProfile.name, profileToolType);
+  } catch (error) {
+    // User cancelled
+    Logger.newLine();
+    Logger.info('↩️  Cancelled.');
+    return;
+  }
+}
+
+/**
+ * Handle list remotes
+ */
+async function handleListRemotes(): Promise<void> {
+  const manager = createRemoteManager();
+  const remotes = await manager.listRemotes();
+
+  if (remotes.length === 0) {
+    Logger.info('No remote templates configured');
+    Logger.info('Add a remote with: crs remote add <url> [name]');
+    return;
+  }
+
+  Logger.header('Remote Template Sources');
+  Logger.newLine();
+
+  const table = new Table({
+    head: [chalk.cyan('Name'), chalk.cyan('Tool'), chalk.cyan('URL'), chalk.cyan('Branch')],
+    colWidths: [20, 8, 50, 12],
+    wordWrap: true,
+  });
+
+  for (const remote of remotes) {
+    table.push([
+      chalk.green(remote.name),
+      remote.toolType === 'claude' ? chalk.blue('Claude') : chalk.magenta('Codex'),
+      remote.url.length > 47 ? remote.url.substring(0, 47) + '...' : remote.url,
+      remote.branch,
+    ]);
+  }
+
+  console.log(table.toString());
+  Logger.newLine();
+  console.log(chalk.dim(`Total: ${remotes.length} remote(s)`));
+}
+
+/**
+ * Handle install from remote
+ */
+async function handleInstallFromRemote(): Promise<void> {
+  const manager = createRemoteManager();
+  const remotes = await manager.listRemotes();
+
+  if (remotes.length === 0) {
+    Logger.warning('No remote templates configured');
+    Logger.info('Add a remote with: crs remote add <url> [name]');
+    return;
+  }
+
+  // Display remotes
+  Logger.header('Available Remote Templates');
+  Logger.newLine();
+
+  const table = new Table({
+    colWidths: [5, 20, 8, 50],
+    wordWrap: true,
+  });
+
+  table.push([
+    chalk.cyan('#'),
+    chalk.cyan('Name'),
+    chalk.cyan('Tool'),
+    chalk.cyan('Description'),
+  ]);
+
+  remotes.forEach((remote, index) => {
+    table.push([
+      (index + 1).toString(),
+      chalk.green(remote.name),
+      remote.toolType === 'claude' ? chalk.blue('Claude') : chalk.magenta('Codex'),
+      remote.description || chalk.dim('No description'),
+    ]);
+  });
+
+  console.log(table.toString());
+  Logger.newLine();
+
+  try {
+    const { selection } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'selection',
+        message: `Enter remote number or name ${chalk.gray('(Enter to cancel)')}: `,
+        validate: (input: string) => {
+          if (!input.trim()) {
+            return true; // Allow empty to cancel
+          }
+
+          // Check if it's a number
+          const num = parseInt(input);
+          if (!isNaN(num)) {
+            if (num < 1 || num > remotes.length) {
+              return `Please enter a number between 1 and ${remotes.length}`;
+            }
+            return true;
+          }
+
+          // Check if it's a remote name
+          const remote = remotes.find(r => r.name === input.trim());
+          if (!remote) {
+            return `Remote "${input}" not found`;
+          }
+          return true;
+        },
+      },
+    ]);
+
+    if (!selection.trim()) {
+      Logger.info('↩️  Returning to main menu...');
+      return;
+    }
+
+    // Determine the remote
+    let selectedRemote;
+    const num = parseInt(selection);
+    if (!isNaN(num)) {
+      selectedRemote = remotes[num - 1];
+    } else {
+      selectedRemote = remotes.find(r => r.name === selection.trim());
+    }
+
+    if (!selectedRemote) {
+      Logger.error('Remote not found');
+      return;
+    }
+
+    // Ask for profile name
+    const { profileName, description } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'profileName',
+        message: 'Enter profile name:',
+        default: selectedRemote.name,
+        validate: (input) => {
+          if (!input.trim()) {
+            return 'Profile name is required';
+          }
+          if (!/^[a-zA-Z0-9-_]+$/.test(input)) {
+            return 'Profile name can only contain letters, numbers, hyphens, and underscores';
+          }
+          return true;
+        },
+      },
+      {
+        type: 'input',
+        name: 'description',
+        message: 'Enter profile description (optional):',
+        default: selectedRemote.description || `Installed from ${selectedRemote.name}`,
+      },
+    ]);
+
+    Logger.newLine();
+
+    // Install from remote
+    const spinner = ora('Installing remote template...').start();
+
+    try {
+      const result = await manager.installRemote(
+        selectedRemote.name,
+        profileName,
+        description
+      );
+
+      spinner.stop();
+
+      if (result.success) {
+        Logger.success(result.message);
+        Logger.newLine();
+        Logger.info(`Switch to profile: ${chalk.cyan(`crs use ${profileName}`)}`);
+      } else {
+        Logger.error(result.message);
+
+        if (result.validation) {
+          if (result.validation.errors && result.validation.errors.length > 0) {
+            Logger.newLine();
+            console.log(chalk.red('❌ Errors:'));
+            result.validation.errors.forEach((err: string) => {
+              console.log(`  ${chalk.red('•')} ${err}`);
+            });
+          }
+        }
+      }
+    } catch (error: any) {
+      spinner.stop();
+      Logger.error(`Failed to install: ${error.message}`);
+    }
   } catch (error) {
     // User cancelled
     Logger.newLine();
