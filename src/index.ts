@@ -18,7 +18,7 @@ const program = new Command();
 program
   .name('crs')
   .description('CLI Rule Switch - Manage and switch between multiple Claude Code and Codex configuration profiles')
-  .version('1.4.0')
+  .version('1.5.0')
   .option('-t, --tool <type>', 'Tool type: claude or codex (default: claude)', 'claude');
 
 // List command
