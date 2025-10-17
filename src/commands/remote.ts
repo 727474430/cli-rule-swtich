@@ -66,14 +66,15 @@ export function createRemoteCommand(program: Command): void {
   // Preview remote
   remote
     .command('preview')
-    .description('Preview a remote template without installing')
+    .description('Preview a remote template without installing (auto-detects templates in any subdirectory or repo root)')
     .argument('<url>', 'GitHub repository URL')
-    .action(async (url: string) => {
+    .option('-t, --tool <type>', 'Tool type: claude or codex (preview with specific tool)')
+    .action(async (url: string, options: any) => {
       const spinner = ora('Fetching template preview...').start();
 
       try {
         const manager = createRemoteManager();
-        const result = await manager.previewRemote(url);
+        const result = await manager.previewRemote(url, options.tool as ToolType);
 
         spinner.stop();
 
@@ -88,19 +89,31 @@ export function createRemoteCommand(program: Command): void {
         }
 
         if (result.info) {
-          console.log(chalk.bold('\n📊 Statistics\n'));
-          console.log(`Tool Type:  ${chalk.cyan(result.info.toolType || 'Unknown')}`);
-          console.log(`Files:      ${chalk.yellow(result.info.fileCount)}`);
-          console.log(`Total Size: ${chalk.yellow(formatBytes(result.info.totalSize))}`);
+          console.log(chalk.bold('\n📊 Source Statistics\n'));
+          console.log(`Detected Tool: ${chalk.cyan(result.info.toolType || 'Unknown')}`);
+          if (typeof result.info.sourceFileCount === 'number') {
+            console.log(`Fetched Files: ${chalk.yellow(result.info.sourceFileCount)} | Total Size: ${chalk.yellow(formatBytes(result.info.sourceTotalSize || 0))}`);
+          }
 
-          console.log(chalk.bold('\n📁 Files:\n'));
-          result.info.files.forEach(file => {
-            console.log(`  ${chalk.dim('├─')} ${file}`);
-          });
+          if (result.info.installFiles && result.info.installFiles.length > 0) {
+            console.log(chalk.bold('\n🧩 Install Plan\n'));
+            console.log(`Tool For Install: ${chalk.cyan(result.info.installToolType)}`);
+            console.log(`Will Install:     ${chalk.yellow(result.info.installFileCount)} file(s) | ${chalk.yellow(formatBytes(result.info.installTotalSize || 0))}`);
+            if (typeof result.info.skippedCount === 'number') {
+              console.log(`Skipped (non-matching/sensitive): ${chalk.dim(result.info.skippedCount)}`);
+            }
+
+            console.log(chalk.bold('\n📁 Files To Be Installed (final structure):\n'));
+            (result.info.files || result.info.installFiles || []).forEach(file => {
+              console.log(`  ${chalk.dim('├─')} ${file}`);
+            });
+          } else {
+            console.log(chalk.yellow('\nNo installable files detected for the selected tool. Try --tool claude|codex or specify a subpath: owner/repo@branch:path/to/template\n'));
+          }
         }
 
         if (result.validation?.isValid) {
-          console.log(chalk.green('\n✓ Template is valid and ready to install\n'));
+          console.log(chalk.green('\n✓ Template is valid. You can install with: crs remote install <url> <profile> [--tool <type>]\n'));
         }
 
       } catch (error: any) {
@@ -152,7 +165,7 @@ export function createRemoteCommand(program: Command): void {
   // Install from remote
   remote
     .command('install')
-    .description('Install a remote template as a profile (supports URL or saved remote name)')
+    .description('Install a remote template as a profile (supports URL or saved remote name; auto-detects template in any subdirectory or repo root)')
     .argument('<source>', 'GitHub URL or saved remote name')
     .argument('<profile>', 'Profile name to create')
     .option('-d, --description <desc>', 'Profile description')

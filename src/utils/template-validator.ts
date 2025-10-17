@@ -1,6 +1,84 @@
 import { RemoteFile, ValidationResult, ToolType } from '../types/index.js';
 
 /**
+ * Filter files by tool type for installation
+ * - claude: keep CLAUDE.md and content under agents/, commands/, workflows/
+ * - codex: keep AGENTS.md only
+ *
+ * This works even when the template lives in a nested subdirectory of the repo
+ * by scanning all fetched files and matching by basename or directory segment.
+ */
+export function filterFilesByToolType(files: RemoteFile[], toolType: ToolType): RemoteFile[] {
+  const norm = (p: string) => p.replace(/\\/g, '/');
+  const dirname = (p: string) => {
+    const n = norm(p);
+    const idx = n.lastIndexOf('/');
+    return idx === -1 ? '' : n.slice(0, idx);
+  };
+  const isBasename = (p: string, name: string) => p.split('/').pop()?.toLowerCase() === name.toLowerCase();
+
+  if (toolType === 'codex') {
+    const candidates = files.filter(f => isBasename(norm(f.path), 'agents.md'));
+    if (candidates.length <= 1) return candidates;
+    // Choose the shallowest path (closest to repo root) to avoid duplicates
+    const best = candidates.reduce((a, b) => (dirname(a.path).split('/').length <= dirname(b.path).split('/').length ? a : b));
+    return [best];
+  }
+
+  // claude: anchor on a CLAUDE.md, then include its sibling agents/workflows/commands content
+  const claudeAnchors = files
+    .filter(f => isBasename(norm(f.path), 'claude.md'))
+    .map(f => ({ file: f, dir: dirname(f.path) }));
+
+  if (claudeAnchors.length === 0) {
+    // Fallback to broad match (shouldn't happen if validation passed)
+    const anywhereAllowed = /(^|\/)((agents)|(workflows)|(commands))\//i;
+    return files.filter(f => anywhereAllowed.test(norm(f.path)) && /\.md$/i.test(f.path));
+  }
+
+  // Choose best anchor
+  const bestAnchor = claudeAnchors
+    .sort((a, b) => (a.dir.split('/').length - b.dir.split('/').length))[0];
+  const bestPrefix = bestAnchor.dir ? norm(bestAnchor.dir) + '/' : '';
+
+  // Within the anchor, detect the best "container" (e.g., '', '.claude', 'templates/x', etc.)
+  const relOf = (p: string) => (p.startsWith(bestPrefix) ? p.slice(bestPrefix.length) : null);
+  const containerCounts = new Map<string, number>();
+  const allowed = ['agents', 'commands', 'workflows'];
+
+  for (const f of files) {
+    const p = norm(f.path);
+    const rel = relOf(p);
+    if (!rel) continue;
+    const m = rel.match(/^(.*?)(agents|commands|workflows)\/.+\.md$/i);
+    if (m) {
+      const container = (m[1] || '').replace(/\/$/, ''); // '' or like '.claude'
+      containerCounts.set(container, (containerCounts.get(container) || 0) + 1);
+    }
+  }
+
+  // Prefer a non-empty container like '.claude' when present; otherwise ''
+  let bestContainer = '';
+  if (containerCounts.size > 0) {
+    bestContainer = Array.from(containerCounts.entries())
+      .sort((a, b) => (b[1] - a[1]) || (a[0].split('/').length - b[0].split('/').length))[0][0];
+  }
+
+  const containerPrefix = bestContainer ? bestContainer + '/' : '';
+
+  return files.filter(f => {
+    const p = norm(f.path);
+    const rel = relOf(p);
+    if (rel == null) return false;
+    if (isBasename(p, 'claude.md')) return true;
+
+    // Only include allowed dirs possibly under bestContainer
+    const rx = new RegExp(`^${containerPrefix}(?:${allowed.join('|')})\\/.+\\.md$`, 'i');
+    return rx.test(rel);
+  });
+}
+
+/**
  * Validation rules for each tool type
  */
 const VALIDATION_RULES = {

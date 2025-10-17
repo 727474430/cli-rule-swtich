@@ -43,6 +43,8 @@ crs --version
 crs --help
 ```
 
+
+
 ## 🚀 快速开始
 
 ```bash
@@ -151,13 +153,13 @@ crs template install-interactive
 从 GitHub 仓库直接安装配置模板：
 
 ```bash
-# 从 GitHub URL 安装
+# 从 GitHub URL 安装（模板可以在任意目录或仓库根，下面仅示例其中一种路径写法）
 crs remote install https://github.com/owner/repo/tree/main/templates my-profile
 
 # 支持简短格式
 crs remote install owner/repo my-profile
 crs remote install owner/repo@branch my-profile
-crs remote install owner/repo@branch:path/to/template my-profile
+crs remote install owner/repo@branch:path/to/template my-profile  # 显式指定子目录可用于多模板仓库的消歧
 
 # 指定工具类型（默认自动检测）
 crs remote install owner/repo my-profile --tool codex
@@ -168,8 +170,9 @@ crs remote list
 # 重复使用已保存的远程源
 crs remote install owner-repo another-profile
 
-# 预览远程模板（不安装）
+# 预览远程模板（不安装）- 显示将被安装的最终结构
 crs remote preview https://github.com/owner/repo
+crs remote preview owner/repo --tool claude  # 指定工具类型进行预览
 
 # 删除远程源
 crs remote remove owner-repo
@@ -177,10 +180,12 @@ crs remote remove owner-repo
 
 **远程模板特性：**
 - 🔗 支持多种 GitHub URL 格式
-- 🔍 自动检测工具类型（Claude/Codex）
+- 📂 模板可位于任意子目录或仓库根目录（不要求使用 templates/ 等固定目录名），会自动递归扫描并定位；安装后会将 `CLAUDE.md`、`agents/`、`commands/`、`workflows/` 规范化到 profile 根目录（不保留隐藏容器目录，如 `.claude`）
+- 🔍 自动检测工具类型（Claude/Codex）并仅安装对应所需文件
 - 🛡️ 安全验证：拒绝可执行文件，过滤敏感文件
 - 📦 自动保存远程源，便于重复使用
 - 🔄 记录 commit SHA，支持版本追踪
+- 🧭 分支智能回退：未显式指定分支且 main 不存在时，自动回退到仓库默认分支进行预览与安装
 
 ## 🎯 使用场景
 
@@ -247,7 +252,7 @@ git commit -m "Add team configs"
 |------|------|------|
 | `crs remote install <source> <profile>` | 安装远程模板 | `crs remote install owner/repo my-profile` |
 | `crs remote list` / `ls` | 列出已保存的远程源 | `crs remote list --tool codex` |
-| `crs remote preview <url>` | 预览远程模板 | `crs remote preview owner/repo` |
+| `crs remote preview <url>` | 预览远程模板（显示最终安装结构） | `crs remote preview owner/repo --tool claude` |
 | `crs remote remove <name>` / `rm` | 删除远程源 | `crs remote remove owner-repo` |
 
 ## 🔧 常见问题

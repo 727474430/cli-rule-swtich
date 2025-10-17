@@ -26,12 +26,27 @@ export class GitHubFetcher {
       throw new Error(`Invalid GitHub URL: ${url}`);
     }
 
-    return this.fetchDirectory(
-      parsed.owner,
-      parsed.repo,
-      parsed.path || '',
-      parsed.ref
-    );
+    const refExplicit = /(?:^|[^\w])(@|\/tree\/|\/commit\/)/.test(url);
+    const tryFetch = async (ref: string) =>
+      this.fetchDirectory(parsed.owner, parsed.repo, parsed.path || '', ref);
+
+    try {
+      return await tryFetch(parsed.ref);
+    } catch (err: any) {
+      // If branch not found and ref was not explicitly specified, fall back to repo default branch
+      const is404 = err && /not found/i.test(String(err.message));
+      if (is404 && !refExplicit) {
+        try {
+          const info = await this.getRepoInfo(parsed.owner, parsed.repo);
+          if (info?.defaultBranch && info.defaultBranch !== parsed.ref) {
+            return await tryFetch(info.defaultBranch);
+          }
+        } catch (_) {
+          // ignore and rethrow original error below
+        }
+      }
+      throw err;
+    }
   }
 
   /**
@@ -88,7 +103,7 @@ export class GitHubFetcher {
     } catch (error: any) {
       if (error.status === 404) {
         throw new Error(
-          `Repository or path not found: ${owner}/${repo}${path ? '/' + path : ''}`
+          `Repository or path not found: ${owner}/${repo}${path ? '/' + path : ''} (ref: ${ref || 'default'})`
         );
       }
       if (error.status === 403) {

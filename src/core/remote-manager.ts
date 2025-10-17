@@ -9,7 +9,7 @@ import {
 } from '../types/index.js';
 import { createFetcher } from '../utils/github-fetcher.js';
 import { parseGitHubUrl } from '../utils/github-parser.js';
-import { validateTemplate, filterSensitiveFiles } from '../utils/template-validator.js';
+import { validateTemplate, filterSensitiveFiles, filterFilesByToolType } from '../utils/template-validator.js';
 import { getConfigPaths } from './config.js';
 
 const REGISTRY_VERSION = '1.0.0';
@@ -181,15 +181,26 @@ export class RemoteManager {
   /**
    * Preview a remote template (without adding to registry)
    */
-  async previewRemote(url: string): Promise<{
+  async previewRemote(url: string, toolType?: ToolType): Promise<{
     success: boolean;
     message?: string;
     validation?: ValidationResult;
     info?: {
       toolType?: ToolType;
+      // For backward compatibility: 'files', 'fileCount', 'totalSize' reflect FINAL install set
       fileCount: number;
       totalSize: number;
       files: string[];
+      // Raw source stats (new)
+      sourceFileCount?: number;
+      sourceTotalSize?: number;
+      sourceFiles?: string[];
+      // Install plan details (new)
+      installToolType?: ToolType;
+      installFileCount?: number;
+      installTotalSize?: number;
+      installFiles?: string[];
+      skippedCount?: number;
     };
   }> {
     try {
@@ -197,16 +208,38 @@ export class RemoteManager {
       const files = await fetcher.fetchFromUrl(url);
       const validation = validateTemplate(files);
 
-      const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+      const sourceTotalSize = files.reduce((sum, f) => sum + f.size, 0);
+
+      // Compute prospective install set using same filtering + restructuring
+      const finalTool: ToolType | undefined = (toolType as ToolType) || validation.toolType;
+      let installFiles: RemoteFile[] = [];
+      if (finalTool) {
+        const filtered = filterFilesByToolType(files, finalTool);
+        const safe = filterSensitiveFiles(filtered);
+        installFiles = this.restructurePaths(safe, finalTool);
+      }
+
+      const installTotal = installFiles.reduce((sum, f) => sum + f.size, 0);
 
       return {
         success: true,
         validation,
         info: {
           toolType: validation.toolType,
-          fileCount: files.length,
-          totalSize,
-          files: files.map(f => f.path),
+          // final set for backward-compatible consumers
+          fileCount: installFiles.length,
+          totalSize: installTotal,
+          files: installFiles.map(f => f.path),
+          // raw stats provided separately
+          sourceFileCount: files.length,
+          sourceTotalSize,
+          sourceFiles: files.map(f => f.path),
+          // explicit install plan
+          installToolType: finalTool,
+          installFileCount: installFiles.length,
+          installTotalSize: installTotal,
+          installFiles: installFiles.map(f => f.path),
+          skippedCount: files.length - installFiles.length,
         },
       };
 
@@ -250,8 +283,17 @@ export class RemoteManager {
         };
       }
 
-      // Filter sensitive files
-      const safeFiles = filterSensitiveFiles(files);
+      // Filter by tool type and remove sensitive files
+      const filtered = filterFilesByToolType(files, remote.toolType);
+      const safeFiles = filterSensitiveFiles(filtered);
+
+      if (filtered.length === 0) {
+        return {
+          success: false,
+          message: `No files matching tool type '${remote.toolType}' were found in the remote source`,
+          validation,
+        };
+      }
 
       // Save as profile
       await this.saveAsProfile(
@@ -319,14 +361,21 @@ export class RemoteManager {
         };
       }
 
-      // Filter sensitive files
-      const safeFiles = filterSensitiveFiles(files);
+      // Filter by final tool type and remove sensitive files
+      const finalToolType = toolType || validation.toolType || 'claude';
+      const filtered = filterFilesByToolType(files, finalToolType);
+      const safeFiles = filterSensitiveFiles(filtered);
 
       // Generate remote name from URL
       const remoteName = this.generateRemoteName(url);
 
-      // Determine tool type: use provided, or detected, or default to claude
-      const finalToolType = toolType || validation.toolType || 'claude';
+      if (filtered.length === 0) {
+        return {
+          success: false,
+          message: `No files matching tool type '${finalToolType}' were found in the remote source`,
+          validation,
+        };
+      }
 
       // Save as profile
       await this.saveAsProfile(
@@ -405,8 +454,11 @@ export class RemoteManager {
     // Create profile directory
     await fs.ensureDir(profileDir);
 
-    // Normalize file paths - remove common prefix
-    const normalizedFiles = this.normalizeFilePaths(files);
+    // Step 1: Restructure paths so required files live at profile root
+    const restructured = this.restructurePaths(files, toolType);
+
+    // Step 2: Normalize file paths - remove common prefix if any remains
+    const normalizedFiles = this.normalizeFilePaths(restructured);
 
     // Save files
     for (const file of normalizedFiles) {
@@ -449,29 +501,57 @@ export class RemoteManager {
 
     for (let i = 0; i < firstPath.length; i++) {
       const segment = firstPath[i];
-      // Check if all paths have this segment at position i
       if (paths.every(p => p.length > i && p[i] === segment)) {
-        // This is a common segment
-        // But check if this is the last common segment and if it's a known directory
         const knownDirs = ['agents', 'workflows', 'commands'];
         const isLastCommonSegment = !paths.every(p => p.length > i + 1 && p[i + 1] === firstPath[i + 1]);
-
         if (isLastCommonSegment && knownDirs.includes(segment)) {
-          // Don't include known directories in common prefix - keep them
           break;
         }
-
         commonPrefixLength = i + 1;
       } else {
         break;
       }
     }
 
-    // Remove common prefix from all paths
     return files.map(file => ({
       ...file,
       path: file.path.split('/').slice(commonPrefixLength).join('/') || file.path,
     }));
+  }
+
+  /**
+   * Restructure paths to ensure required content lives at profile root.
+   * - claude: CLAUDE.md at root; agents|commands|workflows dirs at root
+   * - codex: AGENTS.md at root
+   */
+  private restructurePaths(files: RemoteFile[], toolType: ToolType): RemoteFile[] {
+    const norm = (p: string) => p.replace(/\\/g, '/').replace(/^\/+/, '');
+
+    if (toolType === 'codex') {
+      return files.map(f => {
+        const base = norm(f.path).split('/').pop()?.toLowerCase();
+        if (base === 'agents.md') return { ...f, path: 'AGENTS.md' };
+        return { ...f, path: norm(f.path) };
+      });
+    }
+
+    // claude
+    const allowed = new Set(['agents', 'commands', 'workflows']);
+
+    return files.map(f => {
+      const p = norm(f.path);
+      const parts = p.split('/');
+      const base = parts[parts.length - 1].toLowerCase();
+      if (base === 'claude.md') {
+        return { ...f, path: 'CLAUDE.md' };
+      }
+      const idx = parts.findIndex(seg => allowed.has(seg.toLowerCase()));
+      if (idx !== -1) {
+        return { ...f, path: parts.slice(idx).join('/') };
+      }
+      // Fallback: keep basename
+      return { ...f, path: parts[parts.length - 1] };
+    });
   }
 }
 
