@@ -25,11 +25,12 @@
 
 - 🚀 **开箱即用** - 零配置启动，自动创建默认 profile
 - 📦 **模板系统** - 内置 ACE/Weiming 等专业模板，一键安装
+- 🌐 **远程模板** - 直接从 GitHub 安装配置，支持多种 URL 格式
 - 🎨 **交互式界面** - 美观的 TUI，上下键选择，自动返回主菜单
 - 🔄 **快速切换** - 一键在多个 profile 之间切换
 - 💾 **自动备份** - 每次切换前自动备份，保留最近 5 个
 - 🔀 **双工具支持** - 同时管理 Claude Code 和 Codex 配置
-- 🛡️ **安全可靠** - 操作确认、备份管理、数据完整性保护
+- 🛡️ **安全可靠** - 操作确认、备份管理、安全验证、数据完整性保护
 
 ## 📦 安装
 
@@ -76,12 +77,13 @@ crs template install ace my-ace-config
 运行 `crs` 或 `crs --tool codex` 进入交互界面，使用 ↑/↓ 选择操作：
 
 - 📋 List all profiles - 列出所有配置
-- 🔄 Switch profile - 切换配置  
+- 🔄 Switch profile - 切换配置
 - 💾 Save current config - 保存当前配置
 - ➕ Create empty profile - 创建空白配置
 - 🗑️ Delete profile - 删除配置
+- 📜 List templates / 📦 Install from template - 模板管理
+- 🌐 List remote sources / 🚀 Install from remote - 远程模板管理
 - 📦 List backups / ♻️ Restore backup - 备份管理
-- 📦 Install template - 安装模板
 - ❌ Exit - 退出
 
 ## 🔀 双工具支持
@@ -120,6 +122,8 @@ crs list                      # 显示所有工具的配置
 
 ## 📦 模板系统
 
+### 内置模板
+
 CRS 内置专业配置模板，快速创建标准化配置：
 
 ```bash
@@ -137,11 +141,46 @@ crs template install weiming my-config --tool codex
 crs template install-interactive
 ```
 
-### 内置模板
-
+**可用模板：**
 - **ACE (Autonomous Coding Expert)** - 适用于 Claude Code，提供自主编码专家配置
 - **Weiming** - 适用于 Codex，提供专业开发配置
 - 更多模板持续添加中...
+
+### 远程模板（GitHub）
+
+从 GitHub 仓库直接安装配置模板：
+
+```bash
+# 从 GitHub URL 安装
+crs remote install https://github.com/owner/repo/tree/main/templates my-profile
+
+# 支持简短格式
+crs remote install owner/repo my-profile
+crs remote install owner/repo@branch my-profile
+crs remote install owner/repo@branch:path/to/template my-profile
+
+# 指定工具类型（默认自动检测）
+crs remote install owner/repo my-profile --tool codex
+
+# 查看已保存的远程源
+crs remote list
+
+# 重复使用已保存的远程源
+crs remote install owner-repo another-profile
+
+# 预览远程模板（不安装）
+crs remote preview https://github.com/owner/repo
+
+# 删除远程源
+crs remote remove owner-repo
+```
+
+**远程模板特性：**
+- 🔗 支持多种 GitHub URL 格式
+- 🔍 自动检测工具类型（Claude/Codex）
+- 🛡️ 安全验证：拒绝可执行文件，过滤敏感文件
+- 📦 自动保存远程源，便于重复使用
+- 🔄 记录 commit SHA，支持版本追踪
 
 ## 🎯 使用场景
 
@@ -184,7 +223,7 @@ git commit -m "Add team configs"
 | `crs use <name>` | 切换 profile | `crs use frontend --tool codex` |
 | `crs save <name>` | 保存当前配置 | `crs save my-config -d "描述"` |
 | `crs create <name>` | 创建空白 profile | `crs create minimal -d "描述"` |
-| `crs delete <name>` / `rm` | 删除 profile | `crs delete old-config` |
+| `crs remove <name>` / `rm` | 删除 profile | `crs remove old-config` |
 
 ### 备份命令
 
@@ -202,28 +241,44 @@ git commit -m "Add team configs"
 | `crs template install <template> <profile>` | 安装模板 | `crs template install ace my-ace -d "描述"` |
 | `crs template install-interactive` / `i` | 交互式安装 | `crs template i --tool codex` |
 
+### 远程模板命令
+
+| 命令 | 说明 | 示例 |
+|------|------|------|
+| `crs remote install <source> <profile>` | 安装远程模板 | `crs remote install owner/repo my-profile` |
+| `crs remote list` / `ls` | 列出已保存的远程源 | `crs remote list --tool codex` |
+| `crs remote preview <url>` | 预览远程模板 | `crs remote preview owner/repo` |
+| `crs remote remove <name>` / `rm` | 删除远程源 | `crs remote remove owner-repo` |
+
 ## 🔧 常见问题
 
-**Q: 首次运行会发生什么？**  
+**Q: 首次运行会发生什么？**
 A: 自动检测 `~/.claude` 和 `~/.codex`，创建对应的 `default` profile
 
-**Q: 如何共享配置？**  
+**Q: 如何共享配置？**
 A: 将 `.crs-profiles/` 目录加入 Git 或打包分享
 
-**Q: 备份存在哪里？**  
+**Q: 备份存在哪里？**
 A: `~/.crs-profiles/.backup/`，自动保留最近 5 个备份
 
-**Q: Codex 为什么只管理 AGENTS.md？**  
+**Q: Codex 为什么只管理 AGENTS.md？**
 A: `config.toml` 包含敏感信息，由 Codex 自身管理
 
-**Q: 如何自定义 profiles 目录？**  
+**Q: 如何自定义 profiles 目录？**
 A: 设置环境变量 `export CRS_PROFILES_DIR=/your/path`
+
+**Q: 远程模板如何保证安全？**
+A: 自动拒绝可执行文件（.exe/.sh 等），过滤敏感文件（.env/.key 等），扫描危险代码模式
+
+**Q: GitHub API 速率限制怎么办？**
+A: 设置 GitHub token：`export GITHUB_TOKEN=your_token`
 
 ## 💻 技术栈
 
 - TypeScript 5.3
 - Commander.js - CLI 框架
 - Inquirer.js - 交互式界面
+- Octokit - GitHub API 集成
 - Chalk / Ora / Boxen / cli-table3 - 终端 UI
 - fs-extra - 文件系统操作
 
