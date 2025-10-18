@@ -1,6 +1,6 @@
 import { Octokit } from '@octokit/rest';
-import { GitHubUrlInfo, RemoteFile } from '../types/index.js';
-import { parseGitHubUrl } from './github-parser.js';
+import { GitHubUrlInfo, RemoteFile } from '../types';
+import { parseGitHubUrl } from './github-parser';
 
 /**
  * GitHub API client wrapper for fetching repository contents

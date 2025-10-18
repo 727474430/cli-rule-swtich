@@ -538,7 +538,7 @@ async function handleListRemotes(): Promise<void> {
 
   if (remotes.length === 0) {
     Logger.info('No remote templates configured');
-    Logger.info('Add a remote with: crs remote add <url> [name]');
+    Logger.info('Install a remote with: crs remote install <url> <profile>');
     return;
   }
 
@@ -574,7 +574,7 @@ async function handleInstallFromRemote(): Promise<void> {
 
   if (remotes.length === 0) {
     Logger.warning('No remote templates configured');
-    Logger.info('Add a remote with: crs remote add <url> [name]');
+    Logger.info('Install a remote with: crs remote install <url> <profile>');
     return;
   }
 

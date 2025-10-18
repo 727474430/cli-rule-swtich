@@ -6,11 +6,11 @@ import {
   RemoteFile,
   ValidationResult,
   ToolType,
-} from '../types/index.js';
-import { createFetcher } from '../utils/github-fetcher.js';
-import { parseGitHubUrl } from '../utils/github-parser.js';
-import { validateTemplate, filterSensitiveFiles, filterFilesByToolType } from '../utils/template-validator.js';
-import { getConfigPaths } from './config.js';
+} from '../types';
+import { createFetcher } from '../utils/github-fetcher';
+import { parseGitHubUrl } from '../utils/github-parser';
+import { validateTemplate, filterSensitiveFiles, filterFilesByToolType } from '../utils/template-validator';
+import { getConfigPaths } from './config';
 
 const REGISTRY_VERSION = '1.0.0';
 const REGISTRY_FILE = '.remotes.json';

@@ -3,10 +3,10 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import ora from 'ora';
 import Table from 'cli-table3';
-import { createRemoteManager } from '../core/remote-manager.js';
-import { ToolType } from '../types/index.js';
-import { Logger } from '../utils/logger.js';
-import { isGitHubUrl } from '../utils/github-parser.js';
+import { createRemoteManager } from '../core/remote-manager';
+import { ToolType } from '../types';
+import { Logger } from '../utils/logger';
+import { isGitHubUrl } from '../utils/github-parser';
 
 /**
  * Create remote command group

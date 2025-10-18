@@ -1,4 +1,4 @@
-import { RemoteFile, ValidationResult, ToolType } from '../types/index.js';
+import { RemoteFile, ValidationResult, ToolType } from '../types';
 
 /**
  * Filter files by tool type for installation

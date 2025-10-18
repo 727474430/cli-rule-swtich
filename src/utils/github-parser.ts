@@ -1,4 +1,4 @@
-import { GitHubUrlInfo } from '../types/index.js';
+import { GitHubUrlInfo } from '../types';
 
 /**
  * Parse various GitHub URL formats into structured information
