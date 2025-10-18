@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.8.0 - 2025-10-18
+
+- feat(claude/skills): Add skills directory support across profiles
+  - Read/write/cleanup/count include `skills/` (recursive nested files)
+  - Default Claude profile includes empty `skills/`
+  - Backup/restore/switch preserve `skills/` structure
+  - Remote preview/install recognizes and installs `skills/`
+- chore: CLI shows 1.8.0; MIT LICENSE present; import extensions unified
+
 ## 1.7.0 - 2025-01-17
 
 - feat(template): Add jige Skills MCP Agent template

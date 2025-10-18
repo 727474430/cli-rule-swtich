@@ -44,7 +44,7 @@ export function filterFilesByToolType(files: RemoteFile[], toolType: ToolType): 
   // Within the anchor, detect the best "container" (e.g., '', '.claude', 'templates/x', etc.)
   const relOf = (p: string) => (p.startsWith(bestPrefix) ? p.slice(bestPrefix.length) : null);
   const containerCounts = new Map<string, number>();
-  const allowed = ['agents', 'commands', 'workflows'];
+  const allowed = ['agents', 'commands', 'workflows', 'skills'];
 
   for (const f of files) {
     const p = norm(f.path);
@@ -84,12 +84,13 @@ export function filterFilesByToolType(files: RemoteFile[], toolType: ToolType): 
 const VALIDATION_RULES = {
   claude: {
     required: ['CLAUDE.md'],
-    optional: ['agents/', 'workflows/', 'commands/'],
+    optional: ['agents/', 'workflows/', 'commands/', 'skills/'],
     patterns: {
       // Match files under these directories
       agents: /^agents\/.+\.md$/,
       workflows: /^workflows\/.+\.md$/,
       commands: /^commands\/.+\.md$/,
+      skills: /^skills\/.+\.md$/,
     },
   },
   codex: {
@@ -206,7 +207,7 @@ function validateStructure(files: RemoteFile[], toolType: ToolType): string[] {
   // Validate file patterns for optional directories
   if (toolType === 'claude') {
     const claudeRules = VALIDATION_RULES.claude;
-    for (const dir of ['agents', 'workflows', 'commands'] as const) {
+    for (const dir of ['agents', 'workflows', 'commands', 'skills'] as const) {
       const dirFiles = files.filter(f => f.path.startsWith(`${dir}/`));
       if (dirFiles.length > 0) {
         // Check if files match expected patterns

@@ -10,17 +10,21 @@ async function readDirectoryFiles(dirPath: string): Promise<DirectoryFile[]> {
   const files: DirectoryFile[] = [];
 
   if (await fs.pathExists(dirPath)) {
-    const entries = await fs.readdir(dirPath);
-
-    for (const entry of entries) {
-      const entryPath = path.join(dirPath, entry);
-      const stat = await fs.stat(entryPath);
-
-      if (stat.isFile() && entry.endsWith('.md')) {
-        const content = await fs.readFile(entryPath, 'utf-8');
-        files.push({ name: entry, content });
+    const walk = async (current: string) => {
+      const entries = await fs.readdir(current);
+      for (const entry of entries) {
+        const entryPath = path.join(current, entry);
+        const stat = await fs.stat(entryPath);
+        if (stat.isDirectory()) {
+          await walk(entryPath);
+        } else if (stat.isFile() && entry.toLowerCase().endsWith('.md')) {
+          const content = await fs.readFile(entryPath, 'utf-8');
+          const rel = path.relative(dirPath, entryPath) || entry;
+          files.push({ name: rel, content });
+        }
       }
-    }
+    };
+    await walk(dirPath);
   }
 
   return files;
@@ -68,6 +72,15 @@ export async function readClaudeFiles(claudeDir: string): Promise<ClaudeFiles> {
     files.commands = [];
   }
 
+  // Read skills directory
+  const skillsDir = path.join(claudeDir, CLAUDE_FILES.SKILLS_DIR);
+  const skillsFiles = await readDirectoryFiles(skillsDir);
+  if (skillsFiles.length > 0) {
+    files.skills = skillsFiles;
+  } else if (await fs.pathExists(skillsDir)) {
+    files.skills = [];
+  }
+
   return files;
 }
 
@@ -81,7 +94,9 @@ async function writeDirectoryFiles(
   if (files && files.length > 0) {
     await fs.ensureDir(dirPath);
     for (const file of files) {
-      await fs.writeFile(path.join(dirPath, file.name), file.content);
+      const targetPath = path.join(dirPath, file.name);
+      await fs.ensureDir(path.dirname(targetPath));
+      await fs.writeFile(targetPath, file.content);
     }
   }
 }
@@ -151,6 +166,16 @@ export async function writeClaudeFiles(
       await fs.ensureDir(commandsDir);
     }
   }
+
+  // Write skills directory
+  if (files.skills !== undefined) {
+    const skillsDir = path.join(claudeDir, CLAUDE_FILES.SKILLS_DIR);
+    if (files.skills.length > 0) {
+      await writeDirectoryFiles(skillsDir, files.skills);
+    } else {
+      await fs.ensureDir(skillsDir);
+    }
+  }
 }
 
 /**
@@ -181,6 +206,7 @@ export async function clearClaudeFiles(claudeDir: string): Promise<void> {
     path.join(claudeDir, CLAUDE_FILES.AGENTS_DIR),
     path.join(claudeDir, CLAUDE_FILES.WORKFLOWS_DIR),
     path.join(claudeDir, CLAUDE_FILES.COMMANDS_DIR),
+    path.join(claudeDir, CLAUDE_FILES.SKILLS_DIR),
   ];
 
   for (const file of filesToRemove) {
@@ -217,6 +243,7 @@ export function countClaudeFiles(files: ClaudeFiles): number {
   if (files.agents) count += files.agents.length;
   if (files.workflows) count += files.workflows.length;
   if (files.commands) count += files.commands.length;
+  if ((files as any).skills) count += (files as any).skills.length;
   return count;
 }
 

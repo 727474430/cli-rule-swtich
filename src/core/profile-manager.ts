@@ -270,6 +270,7 @@ Add your configuration here.
               agents: [],
               workflows: [],
               commands: [],
+              skills: [],
             }
           : {
               agentsMd: `# ${name} Agents Configuration
@@ -292,6 +293,7 @@ Add your agents configuration here.
         await fs.ensureDir(path.join(profileDir, 'agents'));
         await fs.ensureDir(path.join(profileDir, 'workflows'));
         await fs.ensureDir(path.join(profileDir, 'commands'));
+        await fs.ensureDir(path.join(profileDir, 'skills'));
       }
 
       return result;

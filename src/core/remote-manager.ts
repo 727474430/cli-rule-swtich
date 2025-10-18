@@ -502,7 +502,7 @@ export class RemoteManager {
     for (let i = 0; i < firstPath.length; i++) {
       const segment = firstPath[i];
       if (paths.every(p => p.length > i && p[i] === segment)) {
-        const knownDirs = ['agents', 'workflows', 'commands'];
+        const knownDirs = ['agents', 'workflows', 'commands', 'skills'];
         const isLastCommonSegment = !paths.every(p => p.length > i + 1 && p[i + 1] === firstPath[i + 1]);
         if (isLastCommonSegment && knownDirs.includes(segment)) {
           break;
@@ -536,7 +536,7 @@ export class RemoteManager {
     }
 
     // claude
-    const allowed = new Set(['agents', 'commands', 'workflows']);
+    const allowed = new Set(['agents', 'commands', 'workflows', 'skills']);
 
     return files.map(f => {
       const p = norm(f.path);

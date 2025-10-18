@@ -40,6 +40,7 @@ export const CLAUDE_FILES = {
   AGENTS_DIR: 'agents',
   WORKFLOWS_DIR: 'workflows',
   COMMANDS_DIR: 'commands',
+  SKILLS_DIR: 'skills',
 } as const;
 
 /**

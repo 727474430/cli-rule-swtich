@@ -11,6 +11,7 @@ export interface ClaudeFiles {
   agents?: DirectoryFile[];   // agents/ directory files
   workflows?: DirectoryFile[]; // workflows/ directory files
   commands?: DirectoryFile[];  // commands/ directory files
+  skills?: DirectoryFile[];    // skills/ directory files
 }
 
 /**
