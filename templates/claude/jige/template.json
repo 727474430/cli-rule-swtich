@@ -1,0 +1,11 @@
+{
+  "name": "jige",
+  "displayName": "Jige (Skills MCP Agent)",
+  "description": "专业的 Skills MCP Agent，集成浏览器自动化专家和技术文档检索专家。通过智能任务委派机制，实现高效的 Web 自动化、技术文档查询和复杂任务处理，同时保持主对话上下文的清洁和 Token 优化。",
+  "toolType": "claude",
+  "category": "productivity",
+  "tags": ["skills", "mcp", "agent", "browser-automation", "tech-docs", "task-delegation"],
+  "author": "TokenRoll Team (DJJ & Danniel)",
+  "version": "1.0.0",
+  "createdAt": "2025-01-17T00:00:00.000Z"
+}

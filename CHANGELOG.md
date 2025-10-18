@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.0 - 2025-01-17
+
+- feat(template): Add jige Skills MCP Agent template
+  - Add comprehensive CLAUDE.md with agent descriptions and usage guide
+  - Include chrome-devtools-expert and context7-researcher agents
+  - Add 5 specialized skills for task delegation and automation
+  - Optimize template metadata with detailed description and tags
+  - Support browser automation, tech docs research, and token optimization
+
 ## 1.6.0 - 2025-10-17
 
 - remote install: 安装时基于工具类型严格过滤
