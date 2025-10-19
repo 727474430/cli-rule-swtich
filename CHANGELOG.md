@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.9.0 - 2025-10-19
+
+- feat(codex/prompts): Add prompts directory support across profiles and workflows (Codex)
+  - Read/write/cleanup/count include `prompts/` (recursive `.md` files)
+  - Default Codex profile scaffolds empty `prompts/`
+  - Backup/restore/switch preserve `prompts/` structure
+  - Remote preview/install recognizes and installs `prompts/` under profile root
+- fix(template): Improve `--tool` resolution for `template install` subcommand
+  - Supports both `crs template install <tpl> <profile> --tool codex` and `crs template install <tpl> --tool codex <profile>`
+  - Also respects top-level `--tool` when used with nested subcommands
+- chore: Bump CLI to 1.9.0; remove temporary E2E test assets
+
 ## 1.8.0 - 2025-10-18
 
 - feat(claude/skills): Add skills directory support across profiles
