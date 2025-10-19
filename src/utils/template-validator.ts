@@ -18,11 +18,15 @@ export function filterFilesByToolType(files: RemoteFile[], toolType: ToolType): 
   const isBasename = (p: string, name: string) => p.split('/').pop()?.toLowerCase() === name.toLowerCase();
 
   if (toolType === 'codex') {
-    const candidates = files.filter(f => isBasename(norm(f.path), 'agents.md'));
-    if (candidates.length <= 1) return candidates;
-    // Choose the shallowest path (closest to repo root) to avoid duplicates
-    const best = candidates.reduce((a, b) => (dirname(a.path).split('/').length <= dirname(b.path).split('/').length ? a : b));
-    return [best];
+    // Include AGENTS.md and any files under prompts/ (markdown only)
+    const isPrompts = (p: string) => /(^|\/)prompts\//i.test(norm(p)) && /\.md$/i.test(p);
+    const agentsCandidates = files.filter(f => isBasename(norm(f.path), 'agents.md'));
+    // Choose the shallowest AGENTS.md if multiple
+    const selectedAgents = agentsCandidates.length <= 1
+      ? agentsCandidates
+      : [agentsCandidates.reduce((a, b) => (dirname(a.path).split('/').length <= dirname(b.path).split('/').length ? a : b))];
+    const promptsFiles = files.filter(f => isPrompts(f.path));
+    return [...selectedAgents, ...promptsFiles];
   }
 
   // claude: anchor on a CLAUDE.md, then include its sibling agents/workflows/commands content
@@ -95,8 +99,10 @@ const VALIDATION_RULES = {
   },
   codex: {
     required: ['AGENTS.md'],
-    optional: [],
-    patterns: {},
+    optional: ['prompts/'],
+    patterns: {
+      prompts: /^prompts\/.+\.md$/i,
+    },
   },
 };
 

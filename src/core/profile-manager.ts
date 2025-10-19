@@ -281,19 +281,24 @@ ${description}
 ## Agents
 Add your agents configuration here.
 `,
+              prompts: [],
             },
       };
 
       // Save profile first
       const result = await this.saveProfile(profile);
 
-      // Create empty directories in the profile (Claude only)
-      if (result.success && this.toolType === 'claude') {
+      // Create empty directories in the profile (Claude and Codex)
+      if (result.success) {
         const profileDir = path.join(this.paths.profilesDir, name);
-        await fs.ensureDir(path.join(profileDir, 'agents'));
-        await fs.ensureDir(path.join(profileDir, 'workflows'));
-        await fs.ensureDir(path.join(profileDir, 'commands'));
-        await fs.ensureDir(path.join(profileDir, 'skills'));
+        if (this.toolType === 'claude') {
+          await fs.ensureDir(path.join(profileDir, 'agents'));
+          await fs.ensureDir(path.join(profileDir, 'workflows'));
+          await fs.ensureDir(path.join(profileDir, 'commands'));
+          await fs.ensureDir(path.join(profileDir, 'skills'));
+        } else {
+          await fs.ensureDir(path.join(profileDir, 'prompts'));
+        }
       }
 
       return result;

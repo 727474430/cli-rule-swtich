@@ -48,6 +48,7 @@ export const CLAUDE_FILES = {
  */
 export const CODEX_FILES = {
   AGENTS_MD: 'AGENTS.md',
+  PROMPTS_DIR: 'prompts',
 } as const;
 
 /**

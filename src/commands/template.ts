@@ -283,9 +283,32 @@ export function registerTemplateCommands(program: Command): void {
     .description('Install a template as a new profile')
     .option('-t, --tool <type>', 'Tool type (claude or codex)')
     .option('-d, --description <desc>', 'Profile description')
-    .action(async (templateName, profileName, options) => {
+    .action(async (templateName, profileName, options, command) => {
+      // Robust tool resolution:
+      // 1) subcommand explicit option
+      // 2) subcommand opts() (Commander sometimes passes here)
+      // 3) parent global option as fallback
+      // 4) explicit parse from argv (nested command edge cases)
+      let tool = (options?.tool as ToolType) || (command?.opts?.().tool as ToolType);
+      if (!tool && command?.parent) {
+        const parentOpts = command.parent.opts?.();
+        if (parentOpts && parentOpts.tool) tool = parentOpts.tool as ToolType;
+      }
+      if (!tool) {
+        const argv = process.argv.slice(2); // after node dist/index.js
+        const idxTool = argv.findIndex(a => a === '--tool' || a === '-t' || a.startsWith('--tool='));
+        if (idxTool !== -1) {
+          const tok = argv[idxTool];
+          if (tok.startsWith('--tool=')) {
+            tool = tok.split('=')[1] as ToolType;
+          } else if (argv[idxTool] === '--tool' || argv[idxTool] === '-t') {
+            tool = argv[idxTool + 1] as ToolType;
+          }
+        }
+      }
+
       await installTemplate(templateName, profileName, {
-        tool: options.tool as ToolType,
+        tool,
         description: options.description,
       });
     });
@@ -296,7 +319,9 @@ export function registerTemplateCommands(program: Command): void {
     .alias('i')
     .description('Install a template interactively')
     .option('-t, --tool <type>', 'Tool type (claude or codex)')
-    .action(async (options) => {
-      await interactiveTemplateInstall(options.tool as ToolType);
+    .action(async (options, command) => {
+      const subTool = (options?.tool as ToolType) || (command?.opts?.().tool as ToolType);
+      const tool = subTool || (command?.parent?.opts?.().tool as ToolType);
+      await interactiveTemplateInstall(tool as ToolType);
     });
 }

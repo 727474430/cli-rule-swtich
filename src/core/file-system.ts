@@ -113,6 +113,16 @@ export async function readCodexFiles(codexDir: string): Promise<CodexFiles> {
     files.agentsMd = await fs.readFile(agentsMdPath, 'utf-8');
   }
 
+  // Read prompts directory (optional)
+  const promptsDir = path.join(codexDir, CODEX_FILES.PROMPTS_DIR);
+  const promptsFiles = await readDirectoryFiles(promptsDir);
+  if (promptsFiles.length > 0) {
+    files.prompts = promptsFiles;
+  } else if (await fs.pathExists(promptsDir)) {
+    // Directory exists but empty, preserve as empty array
+    files.prompts = [];
+  }
+
   return files;
 }
 
@@ -189,11 +199,22 @@ export async function writeCodexFiles(
   await fs.ensureDir(codexDir);
 
   // Write AGENTS.md
-  if (files.agentsMd) {
+  if (files.agentsMd !== undefined) {
     await fs.writeFile(
       path.join(codexDir, CODEX_FILES.AGENTS_MD),
       files.agentsMd
     );
+  }
+
+  // Write prompts directory
+  if (files.prompts !== undefined) {
+    const promptsDir = path.join(codexDir, CODEX_FILES.PROMPTS_DIR);
+    if (files.prompts.length > 0) {
+      await writeDirectoryFiles(promptsDir, files.prompts);
+    } else {
+      // Create empty directory
+      await fs.ensureDir(promptsDir);
+    }
   }
 }
 
@@ -220,10 +241,15 @@ export async function clearClaudeFiles(claudeDir: string): Promise<void> {
  * Clear Codex configuration files from a directory
  */
 export async function clearCodexFiles(codexDir: string): Promise<void> {
-  const agentsMdPath = path.join(codexDir, CODEX_FILES.AGENTS_MD);
-  
-  if (await fs.pathExists(agentsMdPath)) {
-    await fs.remove(agentsMdPath);
+  const filesToRemove = [
+    path.join(codexDir, CODEX_FILES.AGENTS_MD),
+    path.join(codexDir, CODEX_FILES.PROMPTS_DIR),
+  ];
+
+  for (const file of filesToRemove) {
+    if (await fs.pathExists(file)) {
+      await fs.remove(file);
+    }
   }
 }
 
@@ -253,6 +279,7 @@ export function countClaudeFiles(files: ClaudeFiles): number {
 export function countCodexFiles(files: CodexFiles): number {
   let count = 0;
   if (files.agentsMd) count++;
+  if ((files as any).prompts) count += (files as any).prompts.length;
   return count;
 }
 

@@ -19,6 +19,7 @@ export interface ClaudeFiles {
  */
 export interface CodexFiles {
   agentsMd?: string;          // AGENTS.md content
+  prompts?: DirectoryFile[];  // prompts/ directory files (custom instructions)
 }
 
 /**
