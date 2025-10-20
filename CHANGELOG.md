@@ -6,7 +6,6 @@
   - `zh-quality-first`: 中文唯一输出；强调工程质量（SOLID/DRY/边界/测试）；提供输出风格与结构化清单
   - `autonomous-fullcycle`: 自主规划-实施-验证闭环；强制 sequential-thinking；四阶段工作流；默认自动执行
 - feat(template): 为每个 Codex 模板新增独立 `template.json`，字段与 `templates/codex/tool_aug/template.json` 对齐
-- refactor(templates): 将 `c1` 重命名为 `zh-quality-first`，`c2` 重命名为 `autonomous-fullcycle`
 - chore: Bump CLI to 1.10.0
 
 ## 1.9.0 - 2025-10-19
