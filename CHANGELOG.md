@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.10.0 - 2025-10-20
+
+- feat(codex/templates): Add two Codex templates
+  - `zh-quality-first`: 中文唯一输出；强调工程质量（SOLID/DRY/边界/测试）；提供输出风格与结构化清单
+  - `autonomous-fullcycle`: 自主规划-实施-验证闭环；强制 sequential-thinking；四阶段工作流；默认自动执行
+- feat(template): 为每个 Codex 模板新增独立 `template.json`，字段与 `templates/codex/tool_aug/template.json` 对齐
+- refactor(templates): 将 `c1` 重命名为 `zh-quality-first`，`c2` 重命名为 `autonomous-fullcycle`
+- chore: Bump CLI to 1.10.0
+
 ## 1.9.0 - 2025-10-19
 
 - feat(codex/prompts): Add prompts directory support across profiles and workflows (Codex)
@@ -39,4 +48,3 @@
 - remote preview: 现在显示“将被安装的最终结构”，并提供 `--tool` 选项用于消歧
 - 分支智能回退：当未显式指定分支且 `main` 不存在时，自动回退至仓库默认分支
 - 安全过滤：继续过滤敏感文件与危险扩展名
-
