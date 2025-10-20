@@ -1,0 +1,17 @@
+{
+  "name": "autonomous-fullcycle",
+  "displayName": "自主闭环 · 全流程",
+  "description": "强调自主规划-实施-验证闭环，强制 sequential-thinking，四阶段工作流，默认自动执行（少量操作需确认）。",
+  "toolType": "codex",
+  "category": "development",
+  "tags": [
+    "autonomous",
+    "full-cycle",
+    "planning",
+    "no-ci",
+    "high-risk"
+  ],
+  "author": "community",
+  "version": "1.0.0",
+  "createdAt": "2025-10-20T00:00:00.000Z"
+}

@@ -1,0 +1,17 @@
+{
+  "name": "zh-quality-first",
+  "displayName": "中文优先 · 质量标准",
+  "description": "仅中文输出，强调工程质量（SOLID/DRY/测试/边界），工具优先与危险操作确认，包含输出风格与结构化清单。",
+  "toolType": "codex",
+  "category": "development",
+  "tags": [
+    "zh-only",
+    "quality",
+    "engineering-standards",
+    "style-guide",
+    "safe-ops"
+  ],
+  "author": "community",
+  "version": "1.0.0",
+  "createdAt": "2025-10-20T00:00:00.000Z"
+}
