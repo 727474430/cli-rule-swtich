@@ -137,16 +137,34 @@ crs template show ace
 
 # 安装模板
 crs template install ace my-ace-config
-crs template install weiming my-config --tool codex
+crs template install weiming my-config
 
 # 交互式安装
 crs template install-interactive
 ```
 
 **可用模板：**
-- **ACE (Autonomous Coding Expert)** - 适用于 Claude Code，提供自主编码专家配置
-- **Weiming** - 适用于 Codex，提供专业开发配置
-- 更多模板持续添加中...
+- Claude（claude）
+  - `ace` — ACE (Advanced Code Engineering)：自主编码工作流与助手配置
+  - `weiming` — Weiming（未名配置）：专业开发工作流与多子代理能力
+  - `jige` — Skills MCP Agent：浏览器自动化与技术文档检索专家
+- Codex（codex）
+  - `tool_aug` — Tool Augmentation：工具增强的 AGENTS.md 示例
+  - `zh-quality-first` — 中文优先 · 质量标准：中文唯一输出、工程质量规范、危险操作确认
+  - `autonomous-fullcycle` — 自主闭环 · 全流程：四阶段工作流、强制 sequential-thinking、自动执行
+
+安装示例：
+```bash
+# Codex 模板
+crs template install zh-quality-first mycodex-zh --tool codex
+crs template install autonomous-fullcycle mycodex-auto --tool codex
+crs template install tool_aug mycodex-tool --tool codex
+
+# Claude 模板
+crs template install ace my-ace-config
+crs template install weiming my-weiming
+crs template install jige my-jige
+```
 
 ### 远程模板（GitHub）
 
