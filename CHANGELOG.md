@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.10.1 - 2025-01-21
+
+- fix(template-validator): 修复 codex 模板安装时脚本文件验证错误
+  - 将 `.sh` 脚本文件从危险文件列表中移除，允许 codex 模板包含脚本文件
+  - 为 codex 模板类型的脚本文件生成警告而非错误，提醒用户检查安全性
+  - 保持对其他模板类型（如 claude）的严格安全检查
+  - 解决 `crs remote install` 安装包含脚本文件的 codex 模板时的验证失败问题
+
 ## 1.10.0 - 2025-10-20
 
 - feat(codex/templates): Add two Codex templates

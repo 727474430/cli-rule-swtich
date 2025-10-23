@@ -110,8 +110,11 @@ const VALIDATION_RULES = {
  * Security check patterns - files/content to reject
  */
 const SECURITY_PATTERNS = {
-  // Dangerous file extensions
-  dangerousFiles: /\.(exe|dll|so|dylib|sh|bat|cmd|ps1|app)$/i,
+  // Dangerous file extensions (excluding .sh for codex templates)
+  dangerousFiles: /\.(exe|dll|so|dylib|bat|cmd|ps1|app)$/i,
+  
+  // Script files that need special handling
+  scriptFiles: /\.(sh)$/i,
 
   // Sensitive files
   sensitiveFiles: /\.(env|key|pem|p12|pfx|cer|crt|credentials)$/i,
@@ -158,7 +161,7 @@ export function validateTemplate(files: RemoteFile[]): ValidationResult {
   result.errors.push(...structureErrors);
 
   // Security checks
-  const securityIssues = checkSecurity(files);
+  const securityIssues = checkSecurity(files, toolType);
   result.errors.push(...securityIssues.errors);
   result.warnings.push(...securityIssues.warnings);
 
@@ -237,7 +240,7 @@ function validateStructure(files: RemoteFile[], toolType: ToolType): string[] {
 /**
  * Perform security checks on files
  */
-function checkSecurity(files: RemoteFile[]): {
+function checkSecurity(files: RemoteFile[], toolType?: ToolType): {
   errors: string[];
   warnings: string[];
 } {
@@ -253,6 +256,22 @@ function checkSecurity(files: RemoteFile[]): {
         `Dangerous file type detected: ${file.path} (executable or script)`
       );
       continue;
+    }
+
+    // Check for script files - handle differently based on tool type
+    if (SECURITY_PATTERNS.scriptFiles.test(fileName)) {
+      if (toolType === 'codex') {
+        // For codex templates, .sh files are allowed but generate a warning
+        warnings.push(
+          `Script file detected: ${file.path} (will be installed but please review for safety)`
+        );
+      } else {
+        // For other tool types, treat .sh files as dangerous
+        errors.push(
+          `Dangerous file type detected: ${file.path} (executable or script)`
+        );
+        continue;
+      }
     }
 
     // Check for sensitive files
