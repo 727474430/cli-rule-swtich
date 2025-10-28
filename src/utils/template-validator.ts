@@ -110,16 +110,13 @@ const VALIDATION_RULES = {
  * Security check patterns - files/content to reject
  */
 const SECURITY_PATTERNS = {
-  // Dangerous file extensions (excluding .sh for codex templates)
-  dangerousFiles: /\.(exe|dll|so|dylib|bat|cmd|ps1|app)$/i,
-  
-  // Script files that need special handling
-  scriptFiles: /\.(sh)$/i,
+  // Truly dangerous file extensions (binary executables and libraries)
+  dangerousFiles: /\.(exe|dll|so|dylib|app)$/i,
 
-  // Sensitive files
+  // Sensitive files that should not be shared
   sensitiveFiles: /\.(env|key|pem|p12|pfx|cer|crt|credentials)$/i,
 
-  // Dangerous content patterns
+  // Dangerous content patterns (kept for reference, but not blocking installation)
   dangerousContent: [
     /eval\s*\(/i,
     /exec\s*\(/i,
@@ -250,28 +247,12 @@ function checkSecurity(files: RemoteFile[], toolType?: ToolType): {
   for (const file of files) {
     const fileName = file.path.toLowerCase();
 
-    // Check for dangerous file extensions
+    // Check for truly dangerous file extensions (binary executables)
     if (SECURITY_PATTERNS.dangerousFiles.test(fileName)) {
       errors.push(
-        `Dangerous file type detected: ${file.path} (executable or script)`
+        `Dangerous file type detected: ${file.path} (binary executable)`
       );
       continue;
-    }
-
-    // Check for script files - handle differently based on tool type
-    if (SECURITY_PATTERNS.scriptFiles.test(fileName)) {
-      if (toolType === 'codex') {
-        // For codex templates, .sh files are allowed but generate a warning
-        warnings.push(
-          `Script file detected: ${file.path} (will be installed but please review for safety)`
-        );
-      } else {
-        // For other tool types, treat .sh files as dangerous
-        errors.push(
-          `Dangerous file type detected: ${file.path} (executable or script)`
-        );
-        continue;
-      }
     }
 
     // Check for sensitive files
@@ -282,14 +263,8 @@ function checkSecurity(files: RemoteFile[], toolType?: ToolType): {
       continue;
     }
 
-    // Check content for dangerous patterns
-    for (const pattern of SECURITY_PATTERNS.dangerousContent) {
-      if (pattern.test(file.content)) {
-        warnings.push(
-          `Potentially dangerous content in ${file.path} (contains: ${pattern.source})`
-        );
-      }
-    }
+    // Script files (.sh, .ps1, .bat, .cmd) are now allowed
+    // No special handling needed - they will be installed as-is
   }
 
   return { errors, warnings };
@@ -344,11 +319,29 @@ function formatBytes(bytes: number): string {
 }
 
 /**
- * Filter out sensitive files before installation
+ * Filter out sensitive files and binary executables before installation
+ * This includes:
+ * - Sensitive files: .env, .key, .pem, etc.
+ * - Binary executables: .exe, .dll, .so, .dylib, .app
+ * 
+ * Script files (.sh, .ps1, .bat, .cmd) are now allowed as they are
+ * supported by Claude and Codex for automation purposes.
  */
 export function filterSensitiveFiles(files: RemoteFile[]): RemoteFile[] {
   return files.filter(file => {
     const fileName = file.path.toLowerCase();
-    return !SECURITY_PATTERNS.sensitiveFiles.test(fileName);
+    
+    // Filter out sensitive files (.env, .key, .pem, etc.)
+    if (SECURITY_PATTERNS.sensitiveFiles.test(fileName)) {
+      return false;
+    }
+    
+    // Filter out binary executable files only
+    if (SECURITY_PATTERNS.dangerousFiles.test(fileName)) {
+      return false;
+    }
+    
+    // Allow all other files including scripts (.sh, .ps1, .bat, .cmd)
+    return true;
   });
 }

@@ -55,6 +55,7 @@ export class RemoteManager {
 
   /**
    * Add a new remote template source
+   * This will download the files and save them as a profile with the remote name
    */
   async addRemote(
     name: string,
@@ -79,6 +80,8 @@ export class RemoteManager {
       const files = await fetcher.fetchFromUrl(url);
 
       const validation = validateTemplate(files);
+      
+      // Validation now allows script files - no special handling needed
       if (!validation.isValid) {
         return {
           success: false,
@@ -86,6 +89,29 @@ export class RemoteManager {
           validation,
         };
       }
+
+      // Determine tool type
+      const finalToolType = options?.toolType || validation.toolType || 'claude';
+
+      // Filter by tool type and remove sensitive files
+      const filtered = filterFilesByToolType(files, finalToolType);
+      const safeFiles = filterSensitiveFiles(filtered);
+
+      if (filtered.length === 0) {
+        return {
+          success: false,
+          message: `No files matching tool type '${finalToolType}' were found in the remote source`,
+          validation,
+        };
+      }
+
+      // Save as profile (this creates the profile directory with all files)
+      await this.saveAsProfile(
+        name,
+        safeFiles,
+        finalToolType,
+        options?.description || `Remote source: ${url}`
+      );
 
       // Get latest commit
       const commit = await fetcher.getLatestCommit(
@@ -106,11 +132,11 @@ export class RemoteManager {
         };
       }
 
-      // Add remote
+      // Add remote to registry
       registry.remotes[name] = {
         name,
         url,
-        toolType: options?.toolType || validation.toolType || 'claude',
+        toolType: finalToolType,
         branch: parsed.ref,
         path: parsed.path || undefined,
         lastSync: new Date().toISOString(),
@@ -122,7 +148,7 @@ export class RemoteManager {
 
       return {
         success: true,
-        message: `Remote template '${name}' added successfully`,
+        message: `Remote template '${name}' added successfully (${safeFiles.length} files installed as profile)`,
         validation,
       };
 
@@ -157,7 +183,7 @@ export class RemoteManager {
   }
 
   /**
-   * Remove a remote template
+   * Remove a remote template and its profile directory
    */
   async removeRemote(name: string): Promise<{ success: boolean; message: string }> {
     const registry = await this.loadRegistry();
@@ -169,12 +195,21 @@ export class RemoteManager {
       };
     }
 
+    const toolType = registry.remotes[name].toolType;
+    
     delete registry.remotes[name];
     await this.saveRegistry(registry);
 
+    // Remove the profile directory
+    const configPaths = getConfigPaths(toolType);
+    const profileDir = path.join(configPaths.profilesDir, name);
+    if (await fs.pathExists(profileDir)) {
+      await fs.remove(profileDir);
+    }
+
     return {
       success: true,
-      message: `Remote template '${name}' removed successfully`,
+      message: `Remote template '${name}' removed successfully (profile deleted)`,
     };
   }
 
@@ -252,7 +287,7 @@ export class RemoteManager {
   }
 
   /**
-   * Install a remote template as a local profile
+   * Install a remote template as a local profile (copies from remote profile)
    */
   async installRemote(
     remoteName: string,
@@ -269,39 +304,38 @@ export class RemoteManager {
         };
       }
 
-      // Fetch files
-      const fetcher = createFetcher();
-      const files = await fetcher.fetchFromUrl(remote.url);
+      const configPaths = getConfigPaths(remote.toolType);
+      const sourceDir = path.join(configPaths.profilesDir, remoteName);
+      const targetDir = path.join(configPaths.profilesDir, profileName);
 
-      // Validate
-      const validation = validateTemplate(files);
-      if (!validation.isValid) {
+      // Check if source profile exists
+      if (!await fs.pathExists(sourceDir)) {
         return {
           success: false,
-          message: 'Template validation failed',
-          validation,
+          message: `Remote profile '${remoteName}' not found. The remote may have been deleted.`,
         };
       }
 
-      // Filter by tool type and remove sensitive files
-      const filtered = filterFilesByToolType(files, remote.toolType);
-      const safeFiles = filterSensitiveFiles(filtered);
-
-      if (filtered.length === 0) {
+      // Check if target profile already exists
+      if (await fs.pathExists(targetDir)) {
         return {
           success: false,
-          message: `No files matching tool type '${remote.toolType}' were found in the remote source`,
-          validation,
+          message: `Profile '${profileName}' already exists`,
         };
       }
 
-      // Save as profile
-      await this.saveAsProfile(
-        profileName,
-        safeFiles,
-        remote.toolType,
-        description || remote.description || `Installed from ${remoteName}`
-      );
+      // Copy the entire profile directory
+      await fs.copy(sourceDir, targetDir);
+
+      // Update profile metadata
+      const metadataPath = path.join(targetDir, 'profile.json');
+      if (await fs.pathExists(metadataPath)) {
+        const metadata = await fs.readJson(metadataPath);
+        metadata.name = profileName;
+        metadata.description = description || `Copied from remote '${remoteName}'`;
+        metadata.createdAt = new Date().toISOString();
+        await fs.writeJson(metadataPath, metadata, { spaces: 2 });
+      }
 
       // Update last sync
       const registry = await this.loadRegistry();
@@ -312,14 +346,122 @@ export class RemoteManager {
 
       return {
         success: true,
-        message: `Remote template '${remoteName}' installed as profile '${profileName}'`,
-        validation,
+        message: `Remote template '${remoteName}' installed as profile '${profileName}' (copied from remote profile)`,
       };
 
     } catch (error: any) {
       return {
         success: false,
         message: `Failed to install remote: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Install directly from URL with progress callback
+   */
+  async installFromUrlWithProgress(
+    url: string,
+    profileName: string,
+    toolType?: ToolType,
+    onProgress?: (data: any) => void,
+    description?: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    validation?: ValidationResult;
+    remoteName?: string;
+  }> {
+    try {
+      // Parse URL
+      onProgress?.({ type: 'progress', message: '解析 GitHub URL...' });
+      const parsed = parseGitHubUrl(url);
+      if (!parsed.isValid) {
+        return {
+          success: false,
+          message: `Invalid GitHub URL: ${url}`,
+        };
+      }
+
+      // Fetch and validate template
+      onProgress?.({ type: 'progress', message: `正在从 GitHub 获取文件...` });
+      const fetcher = createFetcher();
+      const files = await fetcher.fetchFromUrl(url);
+      
+      onProgress?.({ type: 'progress', message: `已获取 ${files.length} 个文件，正在验证...` });
+
+      const validation = validateTemplate(files);
+      if (!validation.isValid) {
+        return {
+          success: false,
+          message: 'Template validation failed',
+          validation,
+        };
+      }
+
+      // Filter by final tool type and remove sensitive files
+      const finalToolType = toolType || validation.toolType || 'claude';
+      onProgress?.({ type: 'progress', message: `验证通过，工具类型: ${finalToolType}` });
+      
+      const filtered = filterFilesByToolType(files, finalToolType);
+      const safeFiles = filterSensitiveFiles(filtered);
+
+      if (filtered.length === 0) {
+        return {
+          success: false,
+          message: `No files matching tool type '${finalToolType}' were found in the remote source`,
+          validation,
+        };
+      }
+
+      onProgress?.({ type: 'progress', message: `正在保存 ${safeFiles.length} 个文件到 Profile...` });
+
+      // Save as profile (Remote name = Profile name 确保一致性)
+      await this.saveAsProfile(
+        profileName,
+        safeFiles,
+        finalToolType,
+        description || '' // 使用用户提供的描述
+      );
+
+      onProgress?.({ type: 'progress', message: '正在更新远程源注册表...' });
+
+      // Get latest commit
+      const commit = await fetcher.getLatestCommit(
+        parsed.owner,
+        parsed.repo,
+        parsed.path || '',
+        parsed.ref
+      );
+
+      // Save remote in registry using profileName as remote name
+      // This ensures Remote name matches Profile name for easy tracking
+      const registry = await this.loadRegistry();
+      registry.remotes[profileName] = {
+        name: profileName,
+        url,
+        toolType: finalToolType,
+        branch: parsed.ref,
+        path: parsed.path || undefined,
+        lastSync: new Date().toISOString(),
+        commit: commit || undefined,
+        description: description || '', // 使用用户提供的描述
+      };
+      await this.saveRegistry(registry);
+
+      onProgress?.({ type: 'progress', message: '安装完成！' });
+
+      return {
+        success: true,
+        message: `Installed as profile '${profileName}' (remote source saved)`,
+        validation,
+        remoteName: profileName,
+      };
+
+    } catch (error: any) {
+      return {
+        success: false,
+        message: `Failed to install from URL: ${error.message}`,
       };
     }
   }
@@ -366,9 +508,6 @@ export class RemoteManager {
       const filtered = filterFilesByToolType(files, finalToolType);
       const safeFiles = filterSensitiveFiles(filtered);
 
-      // Generate remote name from URL
-      const remoteName = this.generateRemoteName(url);
-
       if (filtered.length === 0) {
         return {
           success: false,
@@ -377,12 +516,12 @@ export class RemoteManager {
         };
       }
 
-      // Save as profile
+      // Save as profile (Remote name = Profile name 确保一致性)
       await this.saveAsProfile(
         profileName,
         safeFiles,
         finalToolType,
-        description || `Installed from ${url}`
+        description || '' // 不设置描述，由用户自定义
       );
 
       // Get latest commit
@@ -393,25 +532,26 @@ export class RemoteManager {
         parsed.ref
       );
 
-      // Save or update remote in registry
+      // Save remote in registry using profileName as remote name
+      // This ensures Remote name matches Profile name for easy tracking
       const registry = await this.loadRegistry();
-      registry.remotes[remoteName] = {
-        name: remoteName,
+      registry.remotes[profileName] = {
+        name: profileName,
         url,
         toolType: finalToolType,
         branch: parsed.ref,
         path: parsed.path || undefined,
         lastSync: new Date().toISOString(),
         commit: commit || undefined,
-        description: description || `Installed from ${url}`,
+        description: description || '', // 不设置描述，保持卡片简洁
       };
       await this.saveRegistry(registry);
 
       return {
         success: true,
-        message: `Installed as profile '${profileName}' and saved as remote '${remoteName}'`,
+        message: `Installed as profile '${profileName}' (remote source saved)`,
         validation,
-        remoteName,
+        remoteName: profileName,
       };
 
     } catch (error: any) {
@@ -420,23 +560,6 @@ export class RemoteManager {
         message: `Failed to install from URL: ${error.message}`,
       };
     }
-  }
-
-  /**
-   * Generate a unique remote name from URL
-   */
-  private generateRemoteName(url: string): string {
-    try {
-      const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
-      if (match) {
-        const baseName = `${match[1]}-${match[2]}`.toLowerCase();
-        // Check if name exists, add number suffix if needed
-        return baseName;
-      }
-    } catch {
-      // fallback
-    }
-    return `remote-${Date.now()}`;
   }
 
   /**

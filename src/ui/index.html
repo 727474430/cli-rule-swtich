@@ -1,0 +1,2096 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRS - CLI Rule Switcher</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .tab-content {
+      display: block;
+    }
+    .tab-content.hidden {
+      display: none;
+    }
+    .tab-active {
+      border-bottom: 2px solid #3b82f6 !important;
+      color: #2563eb !important;
+    }
+    .profile-card-active {
+      @apply ring-2 ring-blue-500 bg-blue-50;
+    }
+    /* 斜角飘带样式 */
+    .ribbon {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 80px;
+      padding: 6px 0;
+      font-size: 10px;
+      font-weight: 700;
+      color: white;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transform: translate(-25%, 25%) rotate(-45deg);
+      transform-origin: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      z-index: 10;
+    }
+    .ribbon-claude {
+      background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    }
+    .ribbon-codex {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+    .ribbon-auto {
+      background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    }
+    /* 卡片需要相对定位和溢出隐藏 */
+    .card-with-ribbon {
+      position: relative;
+      overflow: hidden;
+    }
+    /* 工具类型切换按钮 */
+    .tool-type-btn {
+      color: #6b7280;
+    }
+    .tool-type-btn.active {
+      background: white;
+      color: #1f2937;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    .tool-type-btn:hover:not(.active) {
+      color: #374151;
+    }
+    /* 模态框动画 */
+    @keyframes modalFadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    @keyframes modalSlideIn {
+      from {
+        transform: translateY(-20px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+    .modal-backdrop {
+      animation: modalFadeIn 0.2s ease-out;
+    }
+    .modal-content {
+      animation: modalSlideIn 0.3s ease-out;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <!-- 导航栏 -->
+  <nav class="bg-white shadow-sm border-b">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <div class="flex items-center">
+          <h1 class="text-2xl font-bold text-gray-900">CRS</h1>
+          <span class="ml-3 text-sm text-gray-500">CLI Rule Switcher</span>
+        </div>
+        <div class="flex items-center space-x-4">
+          <span class="text-sm text-gray-600">当前 Profile: <strong id="current-profile-name" class="text-blue-600">加载中...</strong></span>
+          <button onclick="refreshData()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+            刷新
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Tab 导航 -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+    <div class="border-b border-gray-200">
+      <nav class="-mb-px flex space-x-8 overflow-x-auto">
+        <button onclick="switchTab('profiles')" id="tab-profiles" class="border-b-2 border-transparent text-gray-500 py-4 px-1 text-sm font-medium whitespace-nowrap">
+          📋 配置管理
+        </button>
+        <button onclick="switchTab('templates')" id="tab-templates" class="border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
+          📦 模板库
+        </button>
+        <button onclick="switchTab('remotes')" id="tab-remotes" class="border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
+          🌐 远程源
+        </button>
+        <button onclick="switchTab('backups')" id="tab-backups" class="border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
+          💾 备份管理
+        </button>
+        <button onclick="switchTab('about')" id="tab-about" class="border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
+          ℹ️ 关于
+        </button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- 主内容区 -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Profiles 列表 Tab -->
+    <div id="content-profiles" class="tab-content">
+      <div class="mb-4 space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-4">
+            <h2 class="text-xl font-semibold text-gray-900">配置管理</h2>
+            <button onclick="openCreateProfileModal()" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-1">
+              <span>➕</span>
+              <span>创建 Profile</span>
+            </button>
+          </div>
+          <div class="flex items-center space-x-3">
+            <span class="text-sm text-gray-600">工具类型:</span>
+            <div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+              <button onclick="setToolTypeFilter('claude')" id="filter-claude" class="tool-type-btn px-4 py-1.5 text-sm font-medium rounded-md transition-all">
+                Claude
+              </button>
+              <button onclick="setToolTypeFilter('codex')" id="filter-codex" class="tool-type-btn px-4 py-1.5 text-sm font-medium rounded-md transition-all">
+                Codex
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 搜索框 -->
+        <div class="relative">
+          <input 
+            type="text" 
+            id="profile-search" 
+            placeholder="🔍 搜索 Profile (名称、描述)..." 
+            oninput="filterProfiles()"
+            class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <svg class="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </div>
+      </div>
+      
+      <div id="loading" class="text-center py-12 hidden">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <p class="mt-2 text-gray-600">加载中...</p>
+      </div>
+      
+      <div id="profiles-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+        <!-- 动态加载 profile 卡片 -->
+      </div>
+      
+      <div id="empty-state" class="text-center py-12 hidden">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">暂无 Profiles</h3>
+        <p class="mt-1 text-sm text-gray-500">创建一个新的 Profile 开始使用</p>
+        <div class="mt-6">
+          <button onclick="switchTab('create')" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+            创建 Profile
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Templates Tab -->
+    <div id="content-templates" class="tab-content hidden">
+      <h2 class="text-xl font-semibold text-gray-900 mb-6">模板管理</h2>
+      
+      <div class="mb-4 flex items-center justify-between">
+        <p class="text-sm text-gray-600">从内置模板快速创建 Profile</p>
+        <div class="flex items-center space-x-3">
+          <span class="text-sm text-gray-600">工具类型:</span>
+          <div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+            <button onclick="setTemplateFilter('claude')" id="template-claude" class="tool-type-btn px-4 py-1.5 text-sm font-medium rounded-md transition-all">
+              Claude
+            </button>
+            <button onclick="setTemplateFilter('codex')" id="template-codex" class="tool-type-btn px-4 py-1.5 text-sm font-medium rounded-md transition-all">
+              Codex
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div id="templates-loading" class="text-center py-12 hidden">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <p class="mt-2 text-gray-600">加载中...</p>
+      </div>
+      
+      <div id="templates-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+        <!-- 动态加载模板卡片 -->
+      </div>
+      
+      <div id="templates-empty" class="text-center py-12 hidden">
+        <p class="text-gray-500">暂无可用模板</p>
+      </div>
+    </div>
+
+    <!-- Remote 源 Tab -->
+    <div id="content-remotes" class="tab-content hidden">
+      <h2 class="text-xl font-semibold text-gray-900 mb-6">远程源管理</h2>
+      
+      <!-- 快速安装区域 -->
+      <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm p-6 mb-6 border border-blue-100">
+        <h3 class="text-lg font-medium text-gray-900 mb-4 flex items-center">
+          <span class="text-2xl mr-2">⚡</span>
+          从 GitHub URL 快速安装
+        </h3>
+        <form id="quick-install-form" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label for="quick-url" class="block text-sm font-medium text-gray-700">GitHub URL *</label>
+              <input type="url" id="quick-url" required placeholder="https://github.com/user/repo" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+              <p class="mt-1 text-xs text-gray-500">支持完整 GitHub URL 或简写格式</p>
+            </div>
+            <div>
+              <label for="quick-profile-name" class="block text-sm font-medium text-gray-700">Profile 名称 *</label>
+              <input type="text" id="quick-profile-name" required placeholder="my-profile" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+              <p class="mt-1 text-xs text-gray-500">安装后可直接使用</p>
+            </div>
+          </div>
+          <div>
+            <label for="quick-tool-type" class="block text-sm font-medium text-gray-700">工具类型 *</label>
+            <select id="quick-tool-type" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+              <option value="claude">Claude</option>
+              <option value="codex">Codex</option>
+            </select>
+          </div>
+          <div>
+            <label for="quick-description" class="block text-sm font-medium text-gray-700">描述</label>
+            <textarea id="quick-description" rows="2" placeholder="简要描述该 Profile 的用途..." class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"></textarea>
+            <p class="mt-1 text-xs text-gray-500">可选，便于在配置管理中识别</p>
+          </div>
+          <div class="flex justify-end">
+            <button type="submit" class="px-6 py-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+              🚀 安装到 Profile
+            </button>
+          </div>
+        </form>
+      </div>
+      
+      <!-- 已安装的远程源列表 -->
+      <div class="mb-4 flex items-center justify-between">
+        <h3 class="text-lg font-medium text-gray-900">已安装的远程源</h3>
+        <div class="flex items-center space-x-3">
+          <span class="text-sm text-gray-600">工具类型:</span>
+          <div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+            <button onclick="setRemoteFilter('claude')" id="remote-claude" class="tool-type-btn active px-4 py-1.5 text-sm font-medium rounded-md transition-all">
+              Claude
+            </button>
+            <button onclick="setRemoteFilter('codex')" id="remote-codex" class="tool-type-btn px-4 py-1.5 text-sm font-medium rounded-md transition-all">
+              Codex
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div id="remotes-loading" class="text-center py-12 hidden">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <p class="mt-2 text-gray-600">加载中...</p>
+      </div>
+      
+      <div id="remotes-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+        <!-- 动态加载远程源列表 -->
+      </div>
+      
+      <div id="remotes-empty" class="text-center py-12 hidden">
+        <p class="text-gray-500">暂无远程源</p>
+      </div>
+    </div>
+
+    <!-- Backups Tab -->
+    <div id="content-backups" class="tab-content hidden">
+      <h2 class="text-xl font-semibold text-gray-900 mb-6">备份管理</h2>
+      
+      <div class="mb-4 flex items-center justify-between">
+        <p class="text-sm text-gray-600">查看和恢复配置备份</p>
+        <div class="flex items-center space-x-3">
+          <span class="text-sm text-gray-600">工具类型:</span>
+          <div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+            <button onclick="setBackupFilter('claude')" id="backup-claude" class="tool-type-btn active px-4 py-1.5 text-sm font-medium rounded-md transition-all">
+              Claude
+            </button>
+            <button onclick="setBackupFilter('codex')" id="backup-codex" class="tool-type-btn px-4 py-1.5 text-sm font-medium rounded-md transition-all">
+              Codex
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div id="backups-loading" class="text-center py-12 hidden">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <p class="mt-2 text-gray-600">加载中...</p>
+      </div>
+      
+      <div id="backups-list" class="bg-white shadow overflow-hidden sm:rounded-md">
+        <!-- 动态加载备份列表 -->
+      </div>
+      
+      <div id="backups-empty" class="text-center py-12 hidden">
+        <p class="text-gray-500">暂无备份</p>
+      </div>
+    </div>
+
+    <!-- 关于 Tab -->
+    <div id="content-about" class="tab-content hidden">
+      <h2 class="text-xl font-semibold text-gray-900 mb-6">关于 CRS</h2>
+      
+      <div class="bg-white rounded-lg shadow p-6 space-y-4">
+        <div>
+          <h3 class="text-lg font-medium text-gray-900">CLI Rule Switcher</h3>
+          <p class="mt-2 text-gray-600">一个用于管理和切换多个 Claude Code / Codex 配置文件的工具。</p>
+        </div>
+        
+        <div class="border-t border-gray-200 pt-4">
+          <h4 class="font-medium text-gray-900 mb-2">功能特性</h4>
+          <ul class="list-disc list-inside space-y-1 text-gray-600">
+            <li>支持 Claude 和 Codex 两种工具类型</li>
+            <li>快速切换不同的配置 Profile</li>
+            <li>从当前配置或空白创建新 Profile</li>
+            <li>配置管理：列表、创建、切换、删除</li>
+            <li>模板库：从内置模板快速创建</li>
+            <li>远程源：从 GitHub 一键安装</li>
+            <li>备份管理：自动备份并支持恢复</li>
+          </ul>
+        </div>
+        
+        <div class="border-t border-gray-200 pt-4">
+          <h4 class="font-medium text-gray-900 mb-2">CLI 命令</h4>
+          <div class="bg-gray-50 rounded p-4 font-mono text-sm space-y-1">
+            <div><span class="text-blue-600">crs ui</span> - 启动图形界面（当前页面）</div>
+            <div><span class="text-blue-600">crs list</span> - 列出所有 profiles</div>
+            <div><span class="text-blue-600">crs use &lt;name&gt;</span> - 切换到指定 profile</div>
+            <div><span class="text-blue-600">crs save &lt;name&gt;</span> - 保存当前配置为新 profile</div>
+            <div><span class="text-blue-600">crs create &lt;name&gt;</span> - 创建空白 profile</div>
+            <div><span class="text-blue-600">crs delete &lt;name&gt;</span> - 删除 profile</div>
+            <div><span class="text-blue-600">crs template list</span> - 列出所有模板</div>
+            <div><span class="text-blue-600">crs remote list</span> - 列出远程源</div>
+          </div>
+        </div>
+        
+        <div class="border-t border-gray-200 pt-4">
+          <h4 class="font-medium text-gray-900 mb-2">配置目录</h4>
+          <p class="text-sm text-gray-600 font-mono bg-gray-50 p-2 rounded">~/.crs-profiles/</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast 通知 -->
+  <div id="toast" class="fixed top-4 right-4 hidden z-50">
+    <div class="bg-white rounded-lg shadow-lg p-4 max-w-md min-w-80 border border-gray-200">
+      <div class="flex items-start">
+        <div id="toast-icon" class="flex-shrink-0"></div>
+        <div class="ml-3 flex-1">
+          <p id="toast-message" class="text-sm font-medium text-gray-900 whitespace-nowrap"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 全局状态
+    let currentProfile = null;
+    let profiles = [];
+    let templates = [];
+    let remotes = [];
+    let backups = [];
+    let currentToolType = 'claude'; // 当前选中的工具类型（Profiles）
+    let currentTemplateFilter = 'claude'; // 当前模板过滤器
+    let currentRemoteFilter = 'claude'; // 当前远程源过滤器
+    let currentBackupFilter = 'claude'; // 当前备份过滤器
+
+    // ========================================
+    // 工具类型切换系统
+    // ========================================
+    
+    function setToolTypeFilter(type) {
+      currentToolType = type;
+      // 更新按钮状态
+      document.querySelectorAll('#filter-claude, #filter-codex').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      document.getElementById(`filter-${type}`).classList.add('active');
+      // 刷新数据
+      refreshData();
+    }
+    
+    function getToolType() {
+      return currentToolType;
+    }
+    
+    function setTemplateFilter(type) {
+      currentTemplateFilter = type;
+      // 更新按钮状态
+      document.querySelectorAll('#template-claude, #template-codex').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      document.getElementById(`template-${type}`).classList.add('active');
+      // 刷新模板列表
+      loadTemplates();
+    }
+    
+    function getTemplateFilter() {
+      return currentTemplateFilter;
+    }
+    
+    function setBackupFilter(type) {
+      currentBackupFilter = type;
+      // 更新按钮状态
+      document.querySelectorAll('#backup-claude, #backup-codex').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      document.getElementById(`backup-${type}`).classList.add('active');
+      // 刷新备份列表
+      loadBackups();
+    }
+    
+    function getBackupFilter() {
+      return currentBackupFilter;
+    }
+    
+    function setRemoteFilter(type) {
+      currentRemoteFilter = type;
+      // 更新按钮状态
+      document.querySelectorAll('#remote-claude, #remote-codex').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      document.getElementById(`remote-${type}`).classList.add('active');
+      // 刷新远程源列表
+      renderRemotes();
+    }
+    
+    function getRemoteFilter() {
+      return currentRemoteFilter;
+    }
+    
+    function setCreateToolType(type) {
+      document.getElementById('profile-tool-type').value = type;
+      document.querySelectorAll('#create-claude, #create-codex').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      document.getElementById(`create-${type}`).classList.add('active');
+    }
+
+    // ========================================
+    // 模态框系统
+    // ========================================
+    
+    function openModal(content) {
+      const modalContainer = document.getElementById('modal-container');
+      const modalBody = document.getElementById('modal-body');
+      modalBody.innerHTML = content;
+      modalContainer.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      
+      // 添加 ESC 键监听
+      document.addEventListener('keydown', handleEscKey);
+    }
+
+    function closeModal() {
+      const modalContainer = document.getElementById('modal-container');
+      modalContainer.classList.add('hidden');
+      document.body.style.overflow = '';
+      
+      // 移除 ESC 键监听
+      document.removeEventListener('keydown', handleEscKey);
+    }
+
+    function handleEscKey(e) {
+      if (e.key === 'Escape') {
+        // 如果有 Cancel 处理函数，调用它；否则直接关闭
+        if (window.handleConfirmCancel) {
+          window.handleConfirmCancel();
+        } else if (window.handlePromptCancel) {
+          window.handlePromptCancel();
+        } else {
+          closeModal();
+        }
+      }
+    }
+
+    // 自定义 confirm 对话框
+    function showConfirm(message, title = '确认操作') {
+      return new Promise((resolve) => {
+        const content = `
+          <div class="text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-4">
+              <svg class="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">${title}</h3>
+            <p class="text-sm text-gray-500 mb-6">${message}</p>
+            <div class="flex space-x-3">
+              <button onclick="handleConfirmCancel()" class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                取消
+              </button>
+              <button onclick="handleConfirmOk()" class="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                确定
+              </button>
+            </div>
+          </div>
+        `;
+        
+        openModal(content);
+        
+        window.handleConfirmOk = () => {
+          closeModal();
+          resolve(true);
+        };
+        
+        window.handleConfirmCancel = () => {
+          closeModal();
+          resolve(false);
+        };
+      });
+    }
+
+    // 自定义 prompt 输入框
+    function showPrompt(message, defaultValue = '', title = '请输入') {
+      return new Promise((resolve) => {
+        const content = `
+          <div>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">${title}</h3>
+            <p class="text-sm text-gray-500 mb-4">${message}</p>
+            <input 
+              type="text" 
+              id="prompt-input" 
+              value="${defaultValue}" 
+              class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 mb-6"
+              placeholder="请输入..."
+              autocomplete="off"
+            />
+            <div class="flex space-x-3">
+              <button onclick="handlePromptCancel()" class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                取消
+              </button>
+              <button onclick="handlePromptOk()" class="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                确定
+              </button>
+            </div>
+          </div>
+        `;
+        
+        openModal(content);
+        
+        // 聚焦输入框
+        setTimeout(() => {
+          const input = document.getElementById('prompt-input');
+          input.focus();
+          input.select();
+          
+          // 支持回车确认
+          input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+              window.handlePromptOk();
+            }
+          });
+        }, 100);
+        
+        window.handlePromptOk = () => {
+          const input = document.getElementById('prompt-input');
+          const value = input.value.trim();
+          closeModal();
+          resolve(value || null);
+        };
+        
+        window.handlePromptCancel = () => {
+          closeModal();
+          resolve(null);
+        };
+      });
+    }
+
+    // Tab 切换
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('[id^="tab-"]').forEach(el => {
+        el.classList.remove('tab-active');
+        el.classList.add('border-transparent', 'text-gray-500');
+      });
+
+      document.getElementById(`content-${tabName}`).classList.remove('hidden');
+      const activeTab = document.getElementById(`tab-${tabName}`);
+      activeTab.classList.add('tab-active');
+      activeTab.classList.remove('border-transparent', 'text-gray-500');
+
+      // 加载对应数据
+      if (tabName === 'templates') loadTemplates();
+      if (tabName === 'remotes') loadRemotes();
+      if (tabName === 'backups') loadBackups();
+    }
+
+    // Toast 通知
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      const toastMessage = document.getElementById('toast-message');
+      const toastIcon = document.getElementById('toast-icon');
+      
+      toastMessage.textContent = message;
+      
+      if (type === 'success') {
+        toastIcon.innerHTML = '<svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>';
+      } else if (type === 'error') {
+        toastIcon.innerHTML = '<svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>';
+      }
+      
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 3000);
+    }
+
+    // ============ Profiles 相关函数 ============
+    
+    async function fetchCurrentProfile() {
+      try {
+        const toolType = getToolType();
+        const response = await fetch(`/api/profiles/current?toolType=${toolType}`);
+        const result = await response.json();
+        
+        if (result.success) {
+          currentProfile = result.data.name;
+          document.getElementById('current-profile-name').textContent = currentProfile || '未设置';
+        }
+      } catch (error) {
+        console.error('获取当前 profile 失败:', error);
+      }
+    }
+
+    async function fetchProfiles() {
+      const loading = document.getElementById('loading');
+      const grid = document.getElementById('profiles-grid');
+      const emptyState = document.getElementById('empty-state');
+      
+      loading.classList.remove('hidden');
+      grid.classList.add('hidden');
+      emptyState.classList.add('hidden');
+      
+      try {
+        const toolType = getToolType();
+        const response = await fetch(`/api/profiles?toolType=${toolType}`);
+        const result = await response.json();
+        
+        if (result.success) {
+          profiles = result.data;
+          renderProfiles();
+        } else {
+          showToast(result.message, 'error');
+        }
+      } catch (error) {
+        console.error('获取 profiles 失败:', error);
+        showToast('获取 profiles 失败', 'error');
+      } finally {
+        loading.classList.add('hidden');
+      }
+    }
+
+    function filterProfiles() {
+      const searchInput = document.getElementById('profile-search');
+      const searchTerm = searchInput.value.toLowerCase().trim();
+      
+      // 如果没有搜索词，显示所有
+      if (!searchTerm) {
+        renderProfiles();
+        return;
+      }
+      
+      // 过滤 profiles
+      const filtered = profiles.filter(profile => {
+        const nameMatch = profile.name.toLowerCase().includes(searchTerm);
+        const descMatch = (profile.description || '').toLowerCase().includes(searchTerm);
+        return nameMatch || descMatch;
+      });
+      
+      // 渲染过滤后的结果
+      renderProfiles(filtered);
+    }
+    
+    function renderProfiles(profilesToRender = null) {
+      const grid = document.getElementById('profiles-grid');
+      const emptyState = document.getElementById('empty-state');
+      let displayProfiles = profilesToRender || profiles;
+      
+      // 将当前激活的 Profile 排在第一位
+      displayProfiles = [...displayProfiles].sort((a, b) => {
+        const aIsActive = a.name === currentProfile;
+        const bIsActive = b.name === currentProfile;
+        if (aIsActive && !bIsActive) return -1;
+        if (!aIsActive && bIsActive) return 1;
+        return 0; // 保持其他项的原有顺序
+      });
+      
+      if (displayProfiles.length === 0) {
+        grid.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        // 如果是搜索结果为空，显示特殊提示
+        const searchInput = document.getElementById('profile-search');
+        if (searchInput.value.trim()) {
+          emptyState.innerHTML = `
+            <div class="text-center py-12">
+              <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <h3 class="mt-2 text-sm font-medium text-gray-900">未找到匹配的 Profile</h3>
+              <p class="mt-1 text-sm text-gray-500">试试其他搜索词或清空搜索框</p>
+            </div>
+          `;
+        } else {
+          emptyState.innerHTML = `
+            <div class="text-center py-12">
+              <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+              </svg>
+              <h3 class="mt-2 text-sm font-medium text-gray-900">还没有 Profile</h3>
+              <p class="mt-1 text-sm text-gray-500">创建您的第一个 Profile 开始使用</p>
+            </div>
+          `;
+        }
+        return;
+      }
+      
+      grid.classList.remove('hidden');
+      emptyState.classList.add('hidden');
+      
+      grid.innerHTML = displayProfiles.map(profile => {
+        const isActive = profile.name === currentProfile;
+        const activeClass = isActive ? 'profile-card-active' : '';
+        
+        return `
+          <div class="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow ${activeClass} flex flex-col h-full card-with-ribbon">
+            <div class="ribbon ribbon-${profile.toolType}">${profile.toolType}</div>
+            
+            <div class="text-center mb-2 mt-2">
+              <h3 class="text-lg font-semibold text-gray-900">${profile.name}</h3>
+              ${isActive ? '<div class="mt-1"><span class="px-2 py-1 text-xs font-medium text-blue-800 bg-blue-100 rounded">当前</span></div>' : ''}
+            </div>
+            
+            <p class="text-sm text-gray-600 mb-3 text-center">${profile.description || '无描述'}</p>
+            
+            <div class="space-y-1 text-xs text-gray-500 mb-4 flex-1">
+              <div>创建时间: ${new Date(profile.createdAt).toLocaleString('zh-CN')}</div>
+              ${profile.lastUsed ? `<div>最后使用: ${new Date(profile.lastUsed).toLocaleString('zh-CN')}</div>` : ''}
+            </div>
+            
+            <div class="space-y-2 mt-auto">
+              <button onclick="viewProfile('${profile.name}')" class="w-full px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50">
+                📁 查看内容
+              </button>
+              <div class="flex space-x-2">
+                ${!isActive ? `
+                  <button onclick="switchProfile('${profile.name}')" class="flex-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700">
+                    切换
+                  </button>
+                ` : ''}
+                <button onclick="deleteProfile('${profile.name}')" class="flex-1 px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-red-300 rounded hover:bg-red-50">
+                  删除
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function switchProfile(name) {
+      const confirmed = await showConfirm(`确定要切换到 "${name}" 吗？`, '切换 Profile');
+      if (!confirmed) return;
+      
+      try {
+        const toolType = getToolType();
+        const response = await fetch(`/api/profiles/${name}/switch`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ toolType })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showToast(result.message, 'success');
+          await refreshData();
+        } else {
+          showToast(result.message, 'error');
+        }
+      } catch (error) {
+        console.error('切换 profile 失败:', error);
+        showToast('切换 profile 失败', 'error');
+      }
+    }
+
+    async function deleteProfile(name) {
+      const confirmed = await showConfirm(`确定要删除 "${name}" 吗？此操作不可恢复！`, '删除 Profile');
+      if (!confirmed) return;
+      
+      try {
+        const toolType = getToolType();
+        const response = await fetch(`/api/profiles/${name}?toolType=${toolType}`, {
+          method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showToast(result.message, 'success');
+          await refreshData();
+        } else {
+          showToast(result.message, 'error');
+        }
+      } catch (error) {
+        console.error('删除 profile 失败:', error);
+        showToast('删除 profile 失败', 'error');
+      }
+    }
+
+    function resetCreateForm() {
+      document.getElementById('create-form').reset();
+      document.getElementById('from-current').checked = true;
+      // 重置工具类型按钮状态
+      document.querySelectorAll('#create-claude, #create-codex').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      document.getElementById('create-claude').classList.add('active');
+      document.getElementById('profile-tool-type').value = 'claude';
+    }
+    
+    function openCreateProfileModal() {
+      const modal = document.getElementById('create-profile-modal');
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      // 重置表单
+      resetCreateForm();
+    }
+    
+    function closeCreateProfileModal() {
+      const modal = document.getElementById('create-profile-modal');
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    // ============ Templates 相关函数 ============
+    
+    async function loadTemplates() {
+      const loading = document.getElementById('templates-loading');
+      const grid = document.getElementById('templates-grid');
+      const empty = document.getElementById('templates-empty');
+      
+      loading.classList.remove('hidden');
+      grid.classList.add('hidden');
+      empty.classList.add('hidden');
+      
+      try {
+        const toolType = getTemplateFilter();
+        const url = toolType ? `/api/templates?toolType=${toolType}` : '/api/templates';
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result.success) {
+          templates = result.data;
+          renderTemplates();
+        } else {
+          showToast(result.message, 'error');
+        }
+      } catch (error) {
+        console.error('获取模板列表失败:', error);
+        showToast('获取模板列表失败', 'error');
+      } finally {
+        loading.classList.add('hidden');
+      }
+    }
+
+    function renderTemplates() {
+      const grid = document.getElementById('templates-grid');
+      const empty = document.getElementById('templates-empty');
+      
+      if (templates.length === 0) {
+        grid.classList.add('hidden');
+        empty.classList.remove('hidden');
+        return;
+      }
+      
+      grid.classList.remove('hidden');
+      empty.classList.add('hidden');
+      
+      grid.innerHTML = templates.map(template => `
+        <div class="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow flex flex-col h-full card-with-ribbon">
+          <div class="ribbon ribbon-${template.toolType}">${template.toolType}</div>
+          
+          <h3 class="text-lg font-semibold text-gray-900 mb-2 mt-2 text-center">${template.name}</h3>
+          <p class="text-sm text-gray-600 mb-4 flex-1 text-center">${template.description || '无描述'}</p>
+          
+          <button onclick="installTemplate('${template.name}', '${template.toolType}')" class="w-full px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 mt-auto">
+            安装模板
+          </button>
+        </div>
+      `).join('');
+    }
+
+    async function installTemplate(templateName, toolType) {
+      const profileName = await showPrompt('请输入新 Profile 的名称', '', '安装模板');
+      if (!profileName) return;
+      
+      try {
+        const response = await fetch('/api/templates/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ templateName, profileName, toolType })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showToast(result.message, 'success');
+          switchTab('profiles');
+          await refreshData();
+        } else {
+          showToast(result.message, 'error');
+        }
+      } catch (error) {
+        console.error('安装模板失败:', error);
+        showToast('安装模板失败', 'error');
+      }
+    }
+
+    // ============ Remotes 相关函数 ============
+    
+    async function loadRemotes() {
+      const loading = document.getElementById('remotes-loading');
+      const list = document.getElementById('remotes-list');
+      const empty = document.getElementById('remotes-empty');
+      
+      loading.classList.remove('hidden');
+      list.classList.add('hidden');
+      empty.classList.add('hidden');
+      
+      try {
+        const response = await fetch('/api/remotes');
+        const result = await response.json();
+        
+        if (result.success) {
+          remotes = result.data;
+          renderRemotes();
+        } else {
+          showToast(result.message, 'error');
+        }
+      } catch (error) {
+        console.error('获取远程源失败:', error);
+        showToast('获取远程源失败', 'error');
+      } finally {
+        loading.classList.add('hidden');
+      }
+    }
+
+    function renderRemotes() {
+      const list = document.getElementById('remotes-list');
+      const empty = document.getElementById('remotes-empty');
+      
+      // 根据过滤器过滤远程源
+      const filter = getRemoteFilter();
+      const filteredRemotes = remotes.filter(remote => {
+        // 如果 remote 没有 toolType 或为空字符串，视为 'auto'，可以匹配任何过滤器
+        const remoteType = remote.toolType || 'auto';
+        return remoteType === filter || remoteType === 'auto';
+      });
+      
+      if (filteredRemotes.length === 0) {
+        list.classList.add('hidden');
+        empty.classList.remove('hidden');
+        // 根据是否有原始数据决定提示内容
+        if (remotes.length === 0) {
+          empty.innerHTML = '<div class="text-center py-12"><p class="text-gray-500">暂无远程源</p></div>';
+        } else {
+          empty.innerHTML = '<div class="text-center py-12"><p class="text-gray-500">该类型暂无远程源</p></div>';
+        }
+        return;
+      }
+      
+      list.classList.remove('hidden');
+      empty.classList.add('hidden');
+      
+      list.innerHTML = filteredRemotes.map(remote => `
+        <div class="bg-white rounded-lg shadow p-4 flex flex-col h-full card-with-ribbon">
+          <div class="ribbon ribbon-${remote.toolType || 'auto'}">${remote.toolType || 'auto'}</div>
+          
+          <div class="text-center mb-3 mt-2">
+            <h3 class="text-lg font-semibold text-gray-900">${remote.name}</h3>
+          </div>
+          
+          ${remote.description ? `<p class="text-sm text-gray-600 mb-3 text-center">${remote.description}</p>` : ''}
+          
+          <p class="text-xs text-gray-500 font-mono mb-3 break-all ${remote.description ? '' : 'flex-1'}">${remote.url}</p>
+          
+          <div class="text-xs text-gray-400 mb-3 text-center">
+            最后同步: ${remote.lastSync ? new Date(remote.lastSync).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '未知'}
+          </div>
+          
+          <div class="flex space-x-2 mt-auto">
+            <button onclick="installFromRemote('${remote.url}', '${remote.toolType}')" class="flex-1 px-3 py-2 text-sm font-medium text-white bg-green-600 rounded hover:bg-green-700 transition-colors">
+              🔄 再次安装
+            </button>
+            <button onclick="deleteRemote('${remote.name}')" class="flex-1 px-3 py-2 text-sm font-medium text-red-600 bg-white border border-red-300 rounded hover:bg-red-50 transition-colors">
+              🗑️ 删除
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // 通用远程安装功能
+    async function installFromRemote(url, toolType, profileName, description) {
+      // 如果 toolType 为空或为 'auto'，弹出选择框让用户选择
+      let selectedToolType = toolType;
+      if (!toolType || toolType === 'auto' || toolType === '') {
+        const content = `
+          <div>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">选择工具类型</h3>
+            <p class="text-sm text-gray-500 mb-4">请选择要安装的工具类型</p>
+            <div class="space-y-2 mb-6">
+              <div class="flex items-center">
+                <input id="install-claude" name="install-type" type="radio" value="claude" checked class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300">
+                <label for="install-claude" class="ml-3 block text-sm text-gray-700">
+                  Claude
+                </label>
+              </div>
+              <div class="flex items-center">
+                <input id="install-codex" name="install-type" type="radio" value="codex" class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300">
+                <label for="install-codex" class="ml-3 block text-sm text-gray-700">
+                  Codex
+                </label>
+              </div>
+            </div>
+            <div class="flex space-x-3">
+              <button onclick="handleInstallCancel()" class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                取消
+              </button>
+              <button onclick="handleInstallConfirm()" class="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                确定
+              </button>
+            </div>
+          </div>
+        `;
+
+        const typeChoice = await new Promise((resolve) => {
+          openModal(content);
+
+          window.handleInstallConfirm = () => {
+            const checkedRadio = document.querySelector('input[name="install-type"]:checked');
+            closeModal();
+            resolve(checkedRadio ? checkedRadio.value : null);
+          };
+
+          window.handleInstallCancel = () => {
+            closeModal();
+            resolve(null);
+          };
+        });
+
+        if (!typeChoice) return;
+        selectedToolType = typeChoice;
+      }
+
+      // 如果没有提供 profileName，需要用户输入
+      let finalProfileName = profileName;
+      let finalDescription = description;
+      if (!finalProfileName) {
+        finalProfileName = await showPrompt('请输入新 Profile 的名称', '', '从远程源安装');
+        if (!finalProfileName) return;
+        
+        // 同时询问描述信息
+        finalDescription = await showPrompt('请输入 Profile 的描述（可选）', '', '添加描述');
+        // 如果用户取消，description 为 null，我们将其设为空字符串
+        if (finalDescription === null) finalDescription = '';
+      }
+
+      // 显示进度模态框
+      showProgressModal('正在安装远程模板...');
+
+      try {
+        const response = await fetch('/api/remotes/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            url, 
+            profileName: finalProfileName, 
+            toolType: selectedToolType, 
+            description: finalDescription || '', 
+            stream: true 
+          })
+        });
+
+        if (!response.body) {
+          throw new Error('Response body is null');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+
+                if (data.type === 'progress') {
+                  updateProgressModal(data.message);
+                } else if (data.type === 'complete') {
+                  showSuccessModal(data.message, finalProfileName, selectedToolType);
+                  // 刷新远程源列表（如果当前在远程源页面）
+                  if (!document.getElementById('content-remotes').classList.contains('hidden')) {
+                    loadRemotes();
+                  }
+                  return;
+                } else if (data.type === 'error') {
+                  closeProgressModal();
+                  showToast(data.message, 'error');
+                  return;
+                }
+              } catch (e) {
+                console.error('Failed to parse SSE data:', e);
+              }
+            }
+          }
+        }
+
+        closeProgressModal();
+      } catch (error) {
+        console.error('安装远程模板失败:', error);
+        closeProgressModal();
+        showToast('安装远程模板失败', 'error');
+      }
+    }
+
+    
+    function showProgressModal(message) {
+      const modal = document.getElementById('progress-modal');
+      let messageEl = document.getElementById('progress-message');
+      let logEl = document.getElementById('progress-log');
+      
+      // 如果元素不存在（被之前的成功模态框替换了），重新创建进度模态框结构
+      if (!messageEl || !logEl) {
+        const modalContent = modal.querySelector('.modal-content');
+        modalContent.innerHTML = `
+          <!-- 标题 -->
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-semibold text-gray-900">安装进度</h3>
+            <div id="progress-spinner" class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+          </div>
+          
+          <!-- 当前操作 -->
+          <div class="mb-4">
+            <p id="progress-message" class="text-sm font-medium text-gray-700">正在初始化...</p>
+          </div>
+          
+          <!-- 日志区域 -->
+          <div class="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+            <div id="progress-log" class="space-y-1 font-mono text-xs">
+              <!-- 动态添加日志 -->
+            </div>
+          </div>
+          
+          <!-- 提示 -->
+          <div class="mt-4 text-xs text-gray-500 text-center">
+            请不要关闭此窗口，安装过程可能需要几分钟时间...
+          </div>
+        `;
+        
+        // 重新获取元素
+        messageEl = document.getElementById('progress-message');
+        logEl = document.getElementById('progress-log');
+      }
+      
+      messageEl.textContent = message;
+      logEl.innerHTML = '';
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+    
+    function updateProgressModal(message) {
+      const logEl = document.getElementById('progress-log');
+      if (!logEl) {
+        console.warn('Progress log element not found, skipping update');
+        return;
+      }
+      
+      const time = new Date().toLocaleTimeString();
+      const logEntry = document.createElement('div');
+      logEntry.className = 'text-sm text-gray-600';
+      logEntry.innerHTML = `<span class="text-gray-400">[${time}]</span> ${message}`;
+      logEl.appendChild(logEntry);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    
+    function closeProgressModal() {
+      const modal = document.getElementById('progress-modal');
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    function showSuccessModal(message, profileName, toolType) {
+      const modal = document.getElementById('progress-modal');
+      
+      // 找到模态框的内容容器
+      const modalContent = modal.querySelector('.modal-content');
+      
+      // 替换整个模态框内容为成功状态
+      modalContent.innerHTML = `
+        <div class="space-y-4">
+          <div class="text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+              <svg class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">安装成功！</h3>
+            <p class="text-sm text-gray-500 mb-6">${message}</p>
+          </div>
+
+          <div class="bg-green-50 rounded-lg p-4 mb-4 border border-green-200">
+            <div class="text-sm text-gray-600">
+              <div class="font-medium text-green-800 mb-2">📋 Profile 信息</div>
+              <div class="space-y-1">
+                <div><span class="text-green-700">名称:</span> <span class="font-medium text-green-900">${profileName}</span></div>
+                <div><span class="text-green-700">工具类型:</span> <span class="font-medium text-green-900">${toolType}</span></div>
+                <div><span class="text-green-700">状态:</span> <span class="text-green-600 font-medium">✅ 可用</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex space-x-3">
+            <button onclick="closeAndRefreshModal()" class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+              继续浏览
+            </button>
+            <button onclick="goToProfilesTab()" class="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 transition-colors">
+              🚀 去配置管理使用
+            </button>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+            <div class="flex items-start">
+              <span class="text-lg mr-2">💡</span>
+              <div>
+                <div class="font-medium mb-1">下一步操作：</div>
+                <div class="text-xs text-blue-700">
+                  Profile "<strong>${profileName}</strong>" 已成功安装！点击上方 <strong>"🚀 去配置管理使用"</strong> 按钮切换到配置管理页面，在那里你可以：
+                  <ul class="list-disc list-inside mt-1 ml-2 space-y-0.5">
+                    <li>查看 Profile 详细信息</li>
+                    <li>切换到该 Profile 使用</li>
+                    <li>查看和编辑配置文件</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function goToProfilesTab() {
+      closeProgressModal();
+      switchTab('profiles');
+      // 刷新数据以显示新安装的 Profile
+      refreshData();
+    }
+
+    async function closeAndRefreshModal() {
+      closeProgressModal();
+      // 刷新 Profiles 列表，确保新安装的 Profile 能显示
+      await refreshData();
+      // 刷新远程源列表（如果当前在远程源页面）
+      if (!document.getElementById('content-remotes').classList.contains('hidden')) {
+        await loadRemotes();
+      }
+    }
+
+    async function deleteRemote(name) {
+      const confirmed = await showConfirm(
+        `确定要删除远程源 "${name}" 吗？\n\n⚠️ 注意：这将同时删除对应的 Profile "${name}"`,
+        '删除远程源和 Profile'
+      );
+      if (!confirmed) return;
+      
+      try {
+        const response = await fetch(`/api/remotes/${name}`, { method: 'DELETE' });
+        const result = await response.json();
+        
+        if (result.success) {
+          showToast(result.message, 'success');
+          await loadRemotes();
+          await refreshData(); // 刷新 Profiles 列表
+        } else {
+          showToast(result.message, 'error');
+        }
+      } catch (error) {
+        console.error('删除远程源失败:', error);
+        showToast('删除远程源失败', 'error');
+      }
+    }
+
+    // ============ Backups 相关函数 ============
+    
+    async function loadBackups() {
+      const loading = document.getElementById('backups-loading');
+      const list = document.getElementById('backups-list');
+      const empty = document.getElementById('backups-empty');
+      
+      loading.classList.remove('hidden');
+      list.classList.add('hidden');
+      empty.classList.add('hidden');
+      
+      try {
+        const toolType = getBackupFilter();
+        const response = await fetch(`/api/backups?toolType=${toolType}`);
+        const result = await response.json();
+        
+        if (result.success) {
+          backups = result.data;
+          renderBackups();
+        } else {
+          showToast(result.message, 'error');
+        }
+      } catch (error) {
+        console.error('获取备份列表失败:', error);
+        showToast('获取备份列表失败', 'error');
+      } finally {
+        loading.classList.add('hidden');
+      }
+    }
+
+    function renderBackups() {
+      const list = document.getElementById('backups-list');
+      const empty = document.getElementById('backups-empty');
+      
+      if (backups.length === 0) {
+        list.classList.add('hidden');
+        empty.classList.remove('hidden');
+        return;
+      }
+      
+      list.classList.remove('hidden');
+      empty.classList.add('hidden');
+      
+      list.innerHTML = '<ul class="divide-y divide-gray-200">' + backups.map(backup => `
+        <li class="px-6 py-4 hover:bg-gray-50">
+          <div class="flex items-center justify-between">
+            <div class="flex-1">
+              <p class="text-sm font-medium text-gray-900">${new Date(backup.date).toLocaleString('zh-CN')}</p>
+              <div class="mt-1 flex items-center space-x-4 text-xs text-gray-500">
+                <span>时间戳: ${backup.timestamp}</span>
+                ${backup.profileName ? `<span>Profile: ${backup.profileName}</span>` : ''}
+                ${backup.toolType ? `<span>类型: ${backup.toolType}</span>` : ''}
+              </div>
+            </div>
+            <button onclick="restoreBackup('${backup.timestamp}')" class="ml-4 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded hover:bg-green-700">
+              恢复
+            </button>
+          </div>
+        </li>
+      `).join('') + '</ul>';
+    }
+
+    async function restoreBackup(timestamp) {
+      const confirmed = await showConfirm('确定要恢复此备份吗？当前配置将被覆盖！', '恢复备份');
+      if (!confirmed) return;
+      
+      try {
+        const toolType = getBackupFilter();
+        const response = await fetch(`/api/backups/${timestamp}/restore?toolType=${toolType}`, {
+          method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showToast(result.message, 'success');
+          await refreshData();
+        } else {
+          showToast(result.message, 'error');
+        }
+      } catch (error) {
+        console.error('恢复备份失败:', error);
+        showToast('恢复备份失败', 'error');
+      }
+    }
+
+    // ============ 初始化 ============
+    
+    async function refreshData() {
+      await fetchCurrentProfile();
+      await fetchProfiles();
+    }
+
+    // ============ Profile 查看器相关函数 ============
+    
+    let currentViewingProfile = null;
+    let currentFilePath = null;
+    let isEditMode = false;
+    let originalContent = '';
+    let allFiles = []; // 存储所有文件用于搜索
+    
+    async function viewProfile(name) {
+      currentViewingProfile = name;
+      const viewer = document.getElementById('profile-viewer');
+      const title = document.getElementById('viewer-title');
+      const subtitle = document.getElementById('viewer-subtitle');
+      
+      title.textContent = `Profile: ${name}`;
+      subtitle.textContent = '加载文件列表...';
+      viewer.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      
+      // 加载文件树
+      await loadFileTree(name);
+    }
+    
+    function closeProfileViewer() {
+      const viewer = document.getElementById('profile-viewer');
+      viewer.classList.add('hidden');
+      document.body.style.overflow = '';
+      currentViewingProfile = null;
+      currentFilePath = null;
+      isEditMode = false;
+      allFiles = [];
+      
+      // 清空搜索框
+      const fileSearch = document.getElementById('file-search');
+      if (fileSearch) fileSearch.value = '';
+      
+      // 重置文件树和内容区域
+      document.getElementById('file-tree').innerHTML = '<div class="text-center py-8 text-gray-500">加载中...</div>';
+      document.getElementById('file-content').innerHTML = `
+        <div class="text-center py-20 text-gray-500">
+          <div class="text-4xl mb-4">📄</div>
+          <div>请从左侧选择文件查看</div>
+        </div>
+      `;
+      document.getElementById('current-file-path').textContent = '请选择文件查看';
+      document.getElementById('file-actions').classList.add('hidden');
+    }
+    
+    async function loadFileTree(name) {
+      try {
+        const toolType = getToolType();
+        const response = await fetch(`/api/profiles/${name}/files?toolType=${toolType}`);
+        const result = await response.json();
+        
+        if (result.success) {
+          const subtitle = document.getElementById('viewer-subtitle');
+          subtitle.textContent = `路径: ${result.data.path}`;
+          
+          renderFileTree(result.data.files);
+        } else {
+          showToast(result.message, 'error');
+        }
+      } catch (error) {
+        console.error('加载文件树失败:', error);
+        showToast('加载文件树失败', 'error');
+      }
+    }
+    
+    function renderFileTree(files, level = 0) {
+      const treeContainer = document.getElementById('file-tree');
+      
+      if (files.length === 0) {
+        treeContainer.innerHTML = '<div class="text-gray-500 text-center py-4">暂无文件</div>';
+        return;
+      }
+      
+      // 保存所有文件用于搜索
+      allFiles = flattenFiles(files);
+      
+      const html = files.map(file => renderFileNode(file, level)).join('');
+      treeContainer.innerHTML = html;
+    }
+    
+    // 扁平化文件树以便搜索
+    function flattenFiles(files, result = []) {
+      for (const file of files) {
+        result.push(file);
+        if (file.type === 'directory' && file.children) {
+          flattenFiles(file.children, result);
+        }
+      }
+      return result;
+    }
+    
+    // 文件树搜索过滤
+    function filterFileTree() {
+      const searchInput = document.getElementById('file-search');
+      const searchTerm = searchInput.value.toLowerCase().trim();
+      const treeContainer = document.getElementById('file-tree');
+      
+      if (!searchTerm) {
+        // 如果没有搜索词，重新渲染原始树
+        const result = currentViewingProfile ? allFiles : [];
+        if (allFiles.length > 0) {
+          // 重新加载完整树
+          loadFileTree(currentViewingProfile);
+        }
+        return;
+      }
+      
+      // 过滤文件
+      const filtered = allFiles.filter(file => 
+        file.name.toLowerCase().includes(searchTerm)
+      );
+      
+      if (filtered.length === 0) {
+        treeContainer.innerHTML = `
+          <div class="text-center py-8 text-gray-500">
+            <div class="text-4xl mb-2">🔍</div>
+            <div class="text-sm">未找到匹配的文件</div>
+          </div>
+        `;
+        return;
+      }
+      
+      // 渲染搜索结果（扁平列表）
+      const html = filtered.map(file => {
+        const icon = file.type === 'directory' ? '📁' : getFileIcon(file.name);
+        const sizeText = file.type === 'file' ? formatFileSize(file.size) : '';
+        return `
+          <div class="flex items-center py-1 px-2 hover:bg-gray-700 rounded cursor-pointer" onclick="${file.type === 'file' ? `loadFileContent('${file.path.replace(/\\/g, '/')}')` : ''}">
+            <span class="mr-2">${icon}</span>
+            <span class="text-gray-300 flex-1">${file.name}</span>
+            ${sizeText ? `<span class="ml-auto text-xs text-gray-500">${sizeText}</span>` : ''}
+          </div>
+        `;
+      }).join('');
+      
+      treeContainer.innerHTML = html;
+    }
+    
+    function renderFileNode(node, level) {
+      const indent = level * 16;
+      
+      if (node.type === 'directory') {
+        const childrenHtml = node.children ? node.children.map(child => renderFileNode(child, level + 1)).join('') : '';
+        return `
+          <div class="mb-1">
+            <div class="flex items-center py-1 px-2 hover:bg-gray-700 rounded cursor-pointer" style="padding-left: ${indent + 8}px" onclick="toggleDirectory(this)">
+              <span class="mr-2 folder-icon">📁</span>
+              <span class="text-gray-300">${node.name}</span>
+            </div>
+            <div class="folder-children">
+              ${childrenHtml}
+            </div>
+          </div>
+        `;
+      } else {
+        const icon = getFileIcon(node.name);
+        return `
+          <div class="flex items-center py-1 px-2 hover:bg-gray-700 rounded cursor-pointer" style="padding-left: ${indent + 8}px" onclick="loadFileContent('${node.path.replace(/\\/g, '/')}')">
+            <span class="mr-2">${icon}</span>
+            <span class="text-gray-300">${node.name}</span>
+            <span class="ml-auto text-xs text-gray-500">${formatFileSize(node.size)}</span>
+          </div>
+        `;
+      }
+    }
+    
+    function toggleDirectory(element) {
+      const children = element.nextElementSibling;
+      const icon = element.querySelector('.folder-icon');
+      
+      if (children.style.display === 'none') {
+        children.style.display = 'block';
+        icon.textContent = '📁';
+      } else {
+        children.style.display = 'none';
+        icon.textContent = '📂';
+      }
+    }
+    
+    function getFileIcon(filename) {
+      const ext = filename.split('.').pop().toLowerCase();
+      const iconMap = {
+        'md': '📝',
+        'txt': '📄',
+        'json': '📋',
+        'xml': '📋',
+        'yaml': '📋',
+        'yml': '📋',
+        'js': '📜',
+        'ts': '📜',
+        'py': '🐍',
+        'sh': '⚙️',
+        'png': '🖼️',
+        'jpg': '🖼️',
+        'jpeg': '🖼️',
+        'gif': '🖼️',
+        'svg': '🖼️'
+      };
+      return iconMap[ext] || '📄';
+    }
+    
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+    
+    async function loadFileContent(filePath) {
+      try {
+        // 如果正在编辑，先退出编辑模式
+        if (isEditMode) {
+          cancelEdit();
+        }
+        
+        const filePathDisplay = document.getElementById('current-file-path');
+        const fileContent = document.getElementById('file-content');
+        const fileActions = document.getElementById('file-actions');
+        
+        filePathDisplay.textContent = `加载中: ${filePath}`;
+        fileContent.innerHTML = '<div class="text-center py-20 text-gray-500">加载中...</div>';
+        fileActions.classList.add('hidden');
+        
+        const toolType = getToolType();
+        const response = await fetch(`/api/profiles/${currentViewingProfile}/files/content?toolType=${toolType}&path=${encodeURIComponent(filePath)}`);
+        const result = await response.json();
+        
+        if (result.success) {
+          currentFilePath = filePath;
+          originalContent = result.data.content;
+          filePathDisplay.textContent = filePath;
+          
+          // 转义 HTML 并显示
+          const escapedContent = result.data.content
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+          
+          fileContent.innerHTML = `<pre class="whitespace-pre-wrap break-words">${escapedContent}</pre>`;
+          
+          // 显示操作按钮
+          fileActions.classList.remove('hidden');
+        } else {
+          filePathDisplay.textContent = filePath + ' (加载失败)';
+          fileContent.innerHTML = `<div class="text-center py-20 text-red-400">${result.message}</div>`;
+          showToast(result.message, 'error');
+        }
+      } catch (error) {
+        console.error('加载文件内容失败:', error);
+        showToast('加载文件内容失败', 'error');
+      }
+    }
+    
+    function enterEditMode() {
+      isEditMode = true;
+      
+      const fileContent = document.getElementById('file-content');
+      const fileEditor = document.getElementById('file-editor');
+      const editBtn = document.getElementById('edit-btn');
+      const saveBtn = document.getElementById('save-btn');
+      const cancelBtn = document.getElementById('cancel-btn');
+      
+      // 隐藏只读内容，显示编辑器
+      fileContent.classList.add('hidden');
+      fileEditor.classList.remove('hidden');
+      fileEditor.value = originalContent;
+      
+      // 切换按钮
+      editBtn.classList.add('hidden');
+      saveBtn.classList.remove('hidden');
+      cancelBtn.classList.remove('hidden');
+      
+      // 聚焦编辑器
+      fileEditor.focus();
+    }
+    
+    function cancelEdit() {
+      isEditMode = false;
+      
+      const fileContent = document.getElementById('file-content');
+      const fileEditor = document.getElementById('file-editor');
+      const editBtn = document.getElementById('edit-btn');
+      const saveBtn = document.getElementById('save-btn');
+      const cancelBtn = document.getElementById('cancel-btn');
+      
+      // 显示只读内容，隐藏编辑器
+      fileContent.classList.remove('hidden');
+      fileEditor.classList.add('hidden');
+      
+      // 切换按钮
+      editBtn.classList.remove('hidden');
+      saveBtn.classList.add('hidden');
+      cancelBtn.classList.add('hidden');
+    }
+    
+    async function saveFileContent() {
+      try {
+        const fileEditor = document.getElementById('file-editor');
+        const newContent = fileEditor.value;
+        
+        const toolType = getToolType();
+        const response = await fetch(`/api/profiles/${currentViewingProfile}/files/content?toolType=${toolType}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            path: currentFilePath,
+            content: newContent
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          originalContent = newContent;
+          showToast('文件保存成功', 'success');
+          
+          // 退出编辑模式并重新加载
+          cancelEdit();
+          await loadFileContent(currentFilePath);
+        } else {
+          showToast(result.message, 'error');
+        }
+      } catch (error) {
+        console.error('保存文件失败:', error);
+        showToast('保存文件失败', 'error');
+      }
+    }
+
+    // ========================================
+    // 键盘快捷键系统
+    // ========================================
+    
+    document.addEventListener('keydown', (e) => {
+      // Ctrl+S / Cmd+S - 保存文件（仅在编辑模式）
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        if (isEditMode) {
+          e.preventDefault();
+          saveFileContent();
+        }
+      }
+      
+      // ESC - 关闭模态框或查看器
+      if (e.key === 'Escape') {
+        // 优先关闭 Profile 查看器
+        const viewer = document.getElementById('profile-viewer');
+        if (!viewer.classList.contains('hidden')) {
+          closeProfileViewer();
+          return;
+        }
+        
+        // 其次关闭创建 Profile 模态框
+        const createModal = document.getElementById('create-profile-modal');
+        if (createModal && !createModal.classList.contains('hidden')) {
+          closeCreateProfileModal();
+          return;
+        }
+        
+        // 然后关闭通用模态框
+        const modal = document.getElementById('modal-container');
+        if (!modal.classList.contains('hidden')) {
+          closeModal();
+          return;
+        }
+        
+        // 如果在编辑模式，退出编辑
+        if (isEditMode) {
+          cancelEdit();
+        }
+      }
+      
+      // Ctrl+F / Cmd+F - 聚焦搜索框（如果存在）
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        const searchInput = document.getElementById('profile-search');
+        if (searchInput && !searchInput.classList.contains('hidden')) {
+          e.preventDefault();
+          searchInput.focus();
+        }
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // 初始化工具类型按钮状态
+      document.getElementById('filter-claude').classList.add('active');
+      document.getElementById('template-claude').classList.add('active');
+      document.getElementById('remote-claude').classList.add('active');
+      document.getElementById('backup-claude').classList.add('active');
+
+      // 默认激活配置管理 Tab（直接设置样式确保立即生效）
+      const profilesTab = document.getElementById('tab-profiles');
+      profilesTab.classList.add('tab-active');
+      profilesTab.classList.remove('border-transparent', 'text-gray-500');
+
+      // 确保配置管理内容区域可见
+      document.getElementById('content-profiles').classList.remove('hidden');
+      
+      // 绑定创建 Profile 表单提交事件
+      document.getElementById('create-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const name = document.getElementById('profile-name').value.trim();
+        const description = document.getElementById('profile-description').value.trim();
+        const toolType = document.getElementById('profile-tool-type').value;
+        const fromCurrent = document.getElementById('from-current').checked;
+        
+        if (!name) {
+          showToast('请输入 Profile 名称', 'error');
+          return;
+        }
+        
+        try {
+          const response = await fetch('/api/profiles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description, toolType, fromCurrent })
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            showToast(result.message, 'success');
+            closeCreateProfileModal();
+            await refreshData();
+          } else {
+            showToast(result.message, 'error');
+          }
+        } catch (error) {
+          console.error('创建 profile 失败:', error);
+          showToast('创建 profile 失败', 'error');
+        }
+      });
+      
+      // 绑定快速安装表单提交事件
+      document.getElementById('quick-install-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const url = document.getElementById('quick-url').value.trim();
+        const profileName = document.getElementById('quick-profile-name').value.trim();
+        const toolType = document.getElementById('quick-tool-type').value;
+        const description = document.getElementById('quick-description').value.trim();
+
+        if (!url || !profileName) {
+          showToast('请填写完整信息', 'error');
+          return;
+        }
+
+        // 使用与远程源安装相同的逻辑，传递描述信息
+        await installFromRemote(url, toolType, profileName, description);
+
+        // 安装完成后清空表单
+        document.getElementById('quick-install-form').reset();
+
+        // 刷新远程源列表（如果当前在远程源页面）
+        if (!document.getElementById('content-remotes').classList.contains('hidden')) {
+          await loadRemotes();
+        }
+      });
+      
+      refreshData();
+    });
+  </script>
+
+  <!-- 模态框容器 -->
+  <div id="modal-container" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <!-- 背景遮罩 -->
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 transition-opacity" onclick="closeModal()"></div>
+    
+    <!-- 模态框内容 -->
+    <div class="flex items-center justify-center min-h-screen p-4">
+      <div class="modal-content relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+        <div id="modal-body">
+          <!-- 动态内容将在这里插入 -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 创建 Profile 模态框 -->
+  <div id="create-profile-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <!-- 背景遮罩 -->
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 transition-opacity" onclick="closeCreateProfileModal()"></div>
+    
+    <!-- 模态框内容 -->
+    <div class="flex items-center justify-center min-h-screen p-4">
+      <div class="modal-content relative bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+        <!-- 标题 -->
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-xl font-semibold text-gray-900">创建新 Profile</h3>
+          <button onclick="closeCreateProfileModal()" class="text-gray-400 hover:text-gray-600 text-2xl">
+            ✕
+          </button>
+        </div>
+        
+        <!-- 表单 -->
+        <form id="create-form" class="space-y-6">
+          <div>
+            <label for="profile-name" class="block text-sm font-medium text-gray-700">Profile 名称 *</label>
+            <input type="text" id="profile-name" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+            <p class="mt-1 text-sm text-gray-500">建议使用英文或拼音，不要包含特殊字符</p>
+          </div>
+          
+          <div>
+            <label for="profile-description" class="block text-sm font-medium text-gray-700">描述</label>
+            <textarea id="profile-description" rows="3" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"></textarea>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700">工具类型 *</label>
+            <input type="hidden" id="profile-tool-type" value="claude" required />
+            <div class="mt-2 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+              <button type="button" onclick="setCreateToolType('claude')" id="create-claude" class="tool-type-btn active px-6 py-2 text-sm font-medium rounded-md transition-all">
+                Claude
+              </button>
+              <button type="button" onclick="setCreateToolType('codex')" id="create-codex" class="tool-type-btn px-6 py-2 text-sm font-medium rounded-md transition-all">
+                Codex
+              </button>
+            </div>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700">创建方式 *</label>
+            <div class="mt-2 space-y-2">
+              <div class="flex items-center">
+                <input id="from-current" name="create-type" type="radio" value="current" checked class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300">
+                <label for="from-current" class="ml-3 block text-sm text-gray-700">
+                  从当前配置创建
+                  <span class="text-gray-500">(复制当前工具的配置文件)</span>
+                </label>
+              </div>
+              <div class="flex items-center">
+                <input id="from-empty" name="create-type" type="radio" value="empty" class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300">
+                <label for="from-empty" class="ml-3 block text-sm text-gray-700">
+                  创建空白 Profile
+                  <span class="text-gray-500">(创建空的配置)</span>
+                </label>
+              </div>
+            </div>
+          </div>
+          
+          <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+            <button type="button" onclick="closeCreateProfileModal()" class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+              取消
+            </button>
+            <button type="button" onclick="resetCreateForm()" class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+              重置
+            </button>
+            <button type="submit" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+              创建 Profile
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 进度显示模态框 -->
+  <div id="progress-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <!-- 背景遮罩 -->
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 transition-opacity"></div>
+    
+    <!-- 模态框内容 -->
+    <div class="flex items-center justify-center min-h-screen p-4">
+      <div class="modal-content relative bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+        <!-- 标题 -->
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-xl font-semibold text-gray-900">安装进度</h3>
+          <div id="progress-spinner" class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+        </div>
+        
+        <!-- 当前操作 -->
+        <div class="mb-4">
+          <p id="progress-message" class="text-sm font-medium text-gray-700">正在初始化...</p>
+        </div>
+        
+        <!-- 日志区域 -->
+        <div class="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+          <div id="progress-log" class="space-y-1 font-mono text-xs">
+            <!-- 动态添加日志 -->
+          </div>
+        </div>
+        
+        <!-- 提示 -->
+        <div class="mt-4 text-xs text-gray-500 text-center">
+          请不要关闭此窗口，安装过程可能需要几分钟时间...
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile 查看器 -->
+  <div id="profile-viewer" class="hidden fixed inset-0 z-50 bg-gray-900 bg-opacity-95">
+    <div class="h-full flex flex-col">
+      <!-- 头部 -->
+      <div class="bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center">
+        <div>
+          <h2 class="text-xl font-semibold text-white" id="viewer-title">Profile 查看器</h2>
+          <p class="text-sm text-gray-400 mt-1" id="viewer-subtitle"></p>
+        </div>
+        <button onclick="closeProfileViewer()" class="text-gray-400 hover:text-white text-2xl">
+          ✕
+        </button>
+      </div>
+      
+      <!-- 主内容区 -->
+      <div class="flex-1 flex overflow-hidden">
+        <!-- 左侧文件树 -->
+        <div class="w-80 bg-gray-800 border-r border-gray-700 overflow-y-auto flex flex-col">
+          <div class="p-4 border-b border-gray-700">
+            <h3 class="text-sm font-medium text-gray-400 mb-3">文件列表</h3>
+            <!-- 文件搜索框 -->
+            <div class="relative">
+              <input 
+                type="text" 
+                id="file-search" 
+                placeholder="搜索文件..." 
+                oninput="filterFileTree()"
+                class="w-full px-3 py-1.5 pl-8 text-sm bg-gray-700 text-gray-300 border border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <svg class="absolute left-2 top-2 h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+              </svg>
+            </div>
+          </div>
+          <div class="flex-1 overflow-y-auto p-4">
+            <div id="file-tree" class="text-sm">
+              <div class="text-center py-8 text-gray-500">加载中...</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 右侧文件内容 -->
+        <div class="flex-1 bg-gray-900 overflow-hidden flex flex-col">
+          <div class="bg-gray-800 border-b border-gray-700 px-6 py-3 flex justify-between items-center">
+            <div class="text-sm text-gray-300" id="current-file-path">请选择文件查看</div>
+            <div id="file-actions" class="hidden space-x-2">
+              <button id="edit-btn" onclick="enterEditMode()" class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700">
+                ✏️ 编辑
+              </button>
+              <button id="save-btn" onclick="saveFileContent()" class="hidden px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded hover:bg-green-700">
+                💾 保存
+              </button>
+              <button id="cancel-btn" onclick="cancelEdit()" class="hidden px-3 py-1.5 text-sm font-medium text-gray-300 bg-gray-700 rounded hover:bg-gray-600">
+                ✕ 取消
+              </button>
+            </div>
+          </div>
+          <div class="flex-1 overflow-auto p-6 relative">
+            <div id="file-content" class="text-gray-300 font-mono text-sm">
+              <div class="text-center py-20 text-gray-500">
+                <div class="text-4xl mb-4">📄</div>
+                <div>请从左侧选择文件查看</div>
+              </div>
+            </div>
+            <textarea id="file-editor" class="hidden absolute inset-0 w-full h-full bg-gray-800 text-gray-300 font-mono text-sm p-4 border-0 focus:outline-none resize-none" style="min-height: 100%;"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

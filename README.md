@@ -24,9 +24,10 @@
 ## ✨ 核心特性
 
 - 🚀 **开箱即用** - 零配置启动，自动创建默认 profile
+- 🎨 **GUI 可视化** - 现代化 Web 界面，直观的 Profile 管理体验
 - 📦 **模板系统** - 内置 ACE/Weiming 等专业模板，一键安装
 - 🌐 **远程模板** - 直接从 GitHub 安装配置，支持多种 URL 格式
-- 🎨 **交互式界面** - 美观的 TUI，上下键选择，自动返回主菜单
+- 💻 **交互式 CLI** - 美观的 TUI，上下键选择，自动返回主菜单
 - 🔄 **快速切换** - 一键在多个 profile 之间切换
 - 💾 **自动备份** - 每次切换前自动备份，保留最近 5 个
 - 🔀 **双工具支持** - 同时管理 Claude Code 和 Codex 配置
@@ -58,6 +59,9 @@ crs
 ### 常用命令
 
 ```bash
+# 启动图形界面（推荐）🎨
+crs ui
+
 # 列出所有配置
 crs list
 crs list --tool codex
@@ -73,6 +77,39 @@ crs save <name> -d "描述"
 crs template list
 crs template install ace my-ace-config
 ```
+
+### 🎨 GUI 可视化界面
+
+CRS 提供了一个现代化的 Web 界面，让 Profile 管理更加直观：
+
+```bash
+# 启动 GUI 界面（默认端口 3000）
+crs ui
+
+# 自定义端口和主机
+crs ui --port 8080 --host 0.0.0.0
+
+# 启动但不自动打开浏览器
+crs ui --no-browser
+```
+
+**功能特性：**
+- 📋 **Profiles 管理**：可视化展示、切换、创建、删除、内容查看和在线编辑
+- 📦 **Templates 管理**：浏览内置模板并一键安装
+- 🌐 **Remote 源管理**：添加、删除远程源，从 GitHub URL 快速安装
+- 💾 **Backups 管理**：查看历史备份并一键恢复
+- 🔍 **搜索功能**：快速搜索 Profile 和文件树
+- ⌨️ **键盘快捷键**：Ctrl+S 保存、ESC 关闭、Ctrl+F 搜索
+- 🔀 支持 Claude 和 Codex 双工具类型
+- 📱 响应式设计，支持移动端访问
+- 🎯 实时状态显示和操作反馈
+
+**快捷键：**
+- `Ctrl/Cmd + S` - 保存正在编辑的文件
+- `ESC` - 关闭 Profile 查看器、模态框或退出编辑模式
+- `Ctrl/Cmd + F` - 聚焦到搜索框（在 Profiles 页面）
+
+启动后浏览器会自动打开 `http://localhost:3000`，享受完整的图形化管理体验！
 
 ### 交互式模式
 

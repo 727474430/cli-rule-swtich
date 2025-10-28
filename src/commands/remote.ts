@@ -135,7 +135,7 @@ export function createRemoteCommand(program: Command): void {
           {
             type: 'confirm',
             name: 'confirmed',
-            message: `Remove remote template '${name}'?`,
+            message: `Remove remote template '${name}' and its corresponding profile?`,
             default: false,
           },
         ]);
@@ -198,7 +198,7 @@ export function createRemoteCommand(program: Command): void {
             }
 
             console.log(chalk.dim(`\nSwitch to profile: ${chalk.cyan(`crs use ${profileName}`)}`));
-            console.log(chalk.dim(`Reuse this remote: ${chalk.cyan(`crs remote install ${result.remoteName} <profile-name>`)}`));
+            console.log(chalk.dim(`再次安装此源: ${chalk.cyan(`crs remote install ${source} <new-profile-name>`)}`));
           } else {
             Logger.error(result.message);
 
@@ -261,21 +261,6 @@ function displayValidation(validation: any): void {
   if (validation.isValid && validation.errors.length === 0) {
     console.log(chalk.green('\n✓ Validation passed'));
   }
-}
-
-/**
- * Generate a remote name from URL
- */
-function generateRemoteName(url: string): string {
-  try {
-    const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
-    if (match) {
-      return `${match[1]}-${match[2]}`.toLowerCase();
-    }
-  } catch {
-    // fallback
-  }
-  return `remote-${Date.now()}`;
 }
 
 /**

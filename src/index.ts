@@ -11,6 +11,7 @@ import { listBackups, restoreBackup } from './commands/restore';
 import { interactiveMode } from './commands/interactive';
 import { registerTemplateCommands } from './commands/template';
 import { createRemoteCommand } from './commands/remote';
+import { startUI } from './commands/ui';
 import { Logger } from './utils/logger';
 
 const program = new Command();
@@ -18,7 +19,7 @@ const program = new Command();
 program
   .name('crs')
   .description('CLI Rule Switch - Manage and switch between multiple Claude Code and Codex configuration profiles')
-  .version('1.10.1')
+  .version('1.12.0')
   .option('-t, --tool <type>', 'Tool type: claude or codex (default: claude)', 'claude');
 
 // List command
@@ -161,6 +162,30 @@ registerTemplateCommands(program);
 
 // Register remote commands
 createRemoteCommand(program);
+
+// UI command - Start GUI web interface
+const uiCommand = program
+  .command('ui')
+  .description('Start GUI web interface')
+  .option('-p, --port <port>', 'Port to listen on', '3000')
+  .option('-h, --host <host>', 'Host to listen on', 'localhost')
+  .option('--no-browser', 'Do not open browser automatically');
+
+uiCommand.action(async (options: { port: string; host: string; noBrowser: boolean }) => {
+  try {
+    await startUI({
+      port: parseInt(options.port, 10),
+      host: options.host,
+      noBrowser: options.noBrowser
+    });
+  } catch (error) {
+    Logger.error('Failed to start UI');
+    if (error instanceof Error) {
+      Logger.error(error.message);
+    }
+    process.exit(1);
+  }
+});
 
 // Interactive mode (default when no command is provided)
 program.action(async () => {
